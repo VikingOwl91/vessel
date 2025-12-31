@@ -69,7 +69,7 @@ func main() {
 	// Graceful shutdown handling
 	go func() {
 		log.Printf("Server starting on port %s", *port)
-		log.Printf("Ollama URL: %s", *ollamaURL)
+		log.Printf("Ollama URL: %s (using official Go client)", *ollamaURL)
 		log.Printf("Database: %s", *dbPath)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("Failed to start server: %v", err)
