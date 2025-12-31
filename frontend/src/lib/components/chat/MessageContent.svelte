@@ -8,6 +8,7 @@
 	import DOMPurify from 'dompurify';
 	import CodeBlock from './CodeBlock.svelte';
 	import HtmlPreview from './HtmlPreview.svelte';
+	import ToolResultDisplay from './ToolResultDisplay.svelte';
 	import { base64ToDataUrl } from '$lib/ollama/image-processor';
 
 	interface Props {
@@ -20,11 +21,17 @@
 	// Pattern to find fenced code blocks
 	const CODE_BLOCK_PATTERN = /```(\w+)?\n([\s\S]*?)```/g;
 
+	// Pattern to detect tool execution results
+	const TOOL_RESULT_PATTERN = /Tool execution results:\s*\n(Tool (?:result|error):[\s\S]*?)(?=\n\nBased on these results|$)/;
+
+	// Pattern for "Called tool:" text (redundant with ToolCallDisplay)
+	const CALLED_TOOL_PATTERN = /Called tool:\s*\w+\([^)]*\)\s*\n*/g;
+
 	// Languages that should show a preview
 	const PREVIEW_LANGUAGES = ['html', 'htm'];
 
 	interface ContentPart {
-		type: 'text' | 'code';
+		type: 'text' | 'code' | 'tool-result';
 		content: string;
 		language?: string;
 		showPreview?: boolean;
@@ -39,7 +46,52 @@
 	let modalImage = $state<string | null>(null);
 
 	/**
-	 * Parse content into parts (text and code blocks)
+	 * Clean redundant "Called tool:" text (shown via ToolCallDisplay)
+	 */
+	function cleanCalledToolText(text: string): string {
+		return text.replace(CALLED_TOOL_PATTERN, '').trim();
+	}
+
+	/**
+	 * Check if text contains tool execution results
+	 */
+	function containsToolResult(text: string): boolean {
+		return text.includes('Tool execution results:') || text.includes('Tool result:') || text.includes('Tool error:');
+	}
+
+	/**
+	 * Parse a text section for tool results
+	 */
+	function parseTextForToolResults(text: string): ContentPart[] {
+		const parts: ContentPart[] = [];
+
+		// Check for tool execution results pattern
+		const toolMatch = text.match(TOOL_RESULT_PATTERN);
+		if (toolMatch) {
+			const beforeTool = text.slice(0, toolMatch.index);
+			const toolContent = toolMatch[1];
+			const afterTool = text.slice((toolMatch.index || 0) + toolMatch[0].length);
+
+			if (beforeTool.trim()) {
+				parts.push({ type: 'text', content: beforeTool });
+			}
+			parts.push({ type: 'tool-result', content: toolContent });
+			if (afterTool.trim()) {
+				// Recursively parse remaining content
+				parts.push(...parseTextForToolResults(afterTool));
+			}
+			return parts;
+		}
+
+		// No tool result found, return as text
+		if (text.trim()) {
+			parts.push({ type: 'text', content: text });
+		}
+		return parts;
+	}
+
+	/**
+	 * Parse content into parts (text, code blocks, and tool results)
 	 */
 	function parseContent(text: string): ContentPart[] {
 		const parts: ContentPart[] = [];
@@ -51,11 +103,15 @@
 		// Find all code blocks
 		let match;
 		while ((match = CODE_BLOCK_PATTERN.exec(text)) !== null) {
-			// Add text before this code block
+			// Add text before this code block (may contain tool results)
 			if (match.index > lastIndex) {
 				const textBefore = text.slice(lastIndex, match.index);
 				if (textBefore.trim()) {
-					parts.push({ type: 'text', content: textBefore });
+					if (containsToolResult(textBefore)) {
+						parts.push(...parseTextForToolResults(textBefore));
+					} else {
+						parts.push({ type: 'text', content: textBefore });
+					}
 				}
 			}
 
@@ -75,13 +131,21 @@
 		if (lastIndex < text.length) {
 			const remaining = text.slice(lastIndex);
 			if (remaining.trim()) {
-				parts.push({ type: 'text', content: remaining });
+				if (containsToolResult(remaining)) {
+					parts.push(...parseTextForToolResults(remaining));
+				} else {
+					parts.push({ type: 'text', content: remaining });
+				}
 			}
 		}
 
-		// If no code blocks found, return entire content as text
+		// If no code blocks found, check for tool results in entire content
 		if (parts.length === 0 && text.trim()) {
-			parts.push({ type: 'text', content: text });
+			if (containsToolResult(text)) {
+				parts.push(...parseTextForToolResults(text));
+			} else {
+				parts.push({ type: 'text', content: text });
+			}
 		}
 
 		return parts;
@@ -144,8 +208,9 @@
 		}
 	}
 
-	// Parse content into parts
-	const contentParts = $derived(parseContent(content));
+	// Clean and parse content into parts
+	const cleanedContent = $derived(cleanCalledToolText(content));
+	const contentParts = $derived(parseContent(cleanedContent));
 </script>
 
 <div class="message-content">
@@ -195,6 +260,8 @@
 					/>
 				{/if}
 			</div>
+		{:else if part.type === 'tool-result'}
+			<ToolResultDisplay content={part.content} />
 		{:else}
 			<div class="prose prose-sm prose-invert max-w-none">
 				{@html renderMarkdown(part.content)}
