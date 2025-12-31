@@ -37,7 +37,9 @@ func SetupRoutes(r *gin.Engine, db *sql.DB, ollamaURL string) {
 		}
 
 		// URL fetch proxy (for tools that need to fetch external URLs)
+		// Uses curl/wget when available, falls back to native Go HTTP client
 		v1.POST("/proxy/fetch", URLFetchProxyHandler())
+		v1.GET("/proxy/fetch-method", GetFetchMethodHandler())
 
 		// Web search proxy (for web_search tool)
 		v1.POST("/proxy/search", WebSearchProxyHandler())

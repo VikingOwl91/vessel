@@ -2,7 +2,6 @@ package api
 
 import (
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -26,7 +25,10 @@ type SearchResult struct {
 }
 
 // WebSearchProxyHandler returns a handler that performs web searches via DuckDuckGo
+// Uses curl/wget when available for better compatibility
 func WebSearchProxyHandler() gin.HandlerFunc {
+	fetcher := GetFetcher()
+
 	return func(c *gin.Context) {
 		var req SearchRequest
 		if err := c.ShouldBindJSON(&req); err != nil {
@@ -46,51 +48,32 @@ func WebSearchProxyHandler() gin.HandlerFunc {
 		// Build DuckDuckGo HTML search URL
 		searchURL := fmt.Sprintf("https://html.duckduckgo.com/html/?q=%s", url.QueryEscape(req.Query))
 
-		// Create HTTP client with timeout
-		client := &http.Client{
-			Timeout: 15 * time.Second,
-		}
+		// Set up fetch options with browser-like headers
+		opts := DefaultFetchOptions()
+		opts.Timeout = 20 * time.Second
+		opts.MaxLength = 500000 // 500KB is plenty for search results
 
-		// Create request
-		httpReq, err := http.NewRequestWithContext(c.Request.Context(), "GET", searchURL, nil)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create request: " + err.Error()})
-			return
-		}
-
-		// Set headers to mimic a browser
-		httpReq.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
-		httpReq.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
-		httpReq.Header.Set("Accept-Language", "en-US,en;q=0.5")
-
-		// Execute request
-		resp, err := client.Do(httpReq)
+		// Fetch search results
+		result, err := fetcher.Fetch(c.Request.Context(), searchURL, opts)
 		if err != nil {
 			c.JSON(http.StatusBadGateway, gin.H{"error": "failed to perform search: " + err.Error()})
 			return
 		}
-		defer resp.Body.Close()
 
 		// Check status
-		if resp.StatusCode >= 400 {
-			c.JSON(http.StatusBadGateway, gin.H{"error": "search failed: HTTP " + resp.Status})
-			return
-		}
-
-		// Read response body
-		body, err := io.ReadAll(io.LimitReader(resp.Body, 500000)) // 500KB limit
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to read response: " + err.Error()})
+		if result.StatusCode >= 400 {
+			c.JSON(http.StatusBadGateway, gin.H{"error": "search failed: HTTP " + http.StatusText(result.StatusCode)})
 			return
 		}
 
 		// Parse results from HTML
-		results := parseDuckDuckGoResults(string(body), maxResults)
+		results := parseDuckDuckGoResults(result.Content, maxResults)
 
 		c.JSON(http.StatusOK, gin.H{
-			"query":   req.Query,
-			"results": results,
-			"count":   len(results),
+			"query":       req.Query,
+			"results":     results,
+			"count":       len(results),
+			"fetchMethod": string(result.Method),
 		})
 	}
 }

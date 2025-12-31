@@ -10,6 +10,10 @@ export interface ToolCall {
 	id: string;
 	name: string;
 	arguments: string;
+	/** Result of the tool call (stored after execution) */
+	result?: string;
+	/** Error message if tool call failed */
+	error?: string;
 }
 
 /** A single chat message */
@@ -18,6 +22,8 @@ export interface Message {
 	content: string;
 	images?: string[];
 	toolCalls?: ToolCall[];
+	/** If true, message is hidden from UI (e.g., internal tool result messages) */
+	hidden?: boolean;
 }
 
 /** A node in the message tree structure (for branching conversations) */

@@ -161,9 +161,10 @@
 
 	/**
 	 * Convert chat state messages to Ollama API format
+	 * Uses allMessages to include hidden tool result messages
 	 */
 	function getMessagesForApi(): OllamaMessage[] {
-		return chatState.visibleMessages.map((node) => ({
+		return chatState.allMessages.map((node) => ({
 			role: node.message.role as OllamaMessage['role'],
 			content: node.message.content,
 			images: node.message.images
@@ -439,43 +440,41 @@
 		isExecutingTools = true;
 
 		try {
-			// Convert tool calls to executor format
-			const convertedCalls = convertToolCalls(toolCalls);
+			// Convert tool calls to executor format with stable IDs
+			const callIds = toolCalls.map(() => crypto.randomUUID());
+			const convertedCalls = toolCalls.map((tc, i) => ({
+				id: callIds[i],
+				name: tc.function.name,
+				arguments: tc.function.arguments
+			}));
 
 			// Execute all tools (including custom tools)
 			const results = await runToolCalls(convertedCalls, undefined, toolsState.customTools);
 
-			// Format results for chat
+			// Format results for model context (still needed for LLM to respond)
 			const toolResultContent = formatToolResultsForChat(results);
 
-			// Add the assistant's tool call response to chat (with info about what was called)
-			const toolCallInfo = toolCalls
-				.map(tc => `Called tool: ${tc.function.name}(${JSON.stringify(tc.function.arguments)})`)
-				.join('\n');
-
-			// Update the assistant message with tool call info and structured data
+			// Update the assistant message with structured tool call data (including results)
 			const assistantNode = chatState.messageTree.get(assistantMessageId);
 			if (assistantNode) {
-				// Preserve any thinking content that was already streamed
-				const existingContent = assistantNode.message.content || '';
-				const newContent = toolCallInfo + '\n\n' + toolResultContent;
+				// Store structured tool call data WITH results for display
+				// Results are shown collapsed in ToolCallDisplay - NOT as raw message content
+				assistantNode.message.toolCalls = toolCalls.map((tc, i) => {
+					const result = results[i];
+					return {
+						id: callIds[i],
+						name: tc.function.name,
+						arguments: JSON.stringify(tc.function.arguments),
+						result: result.success ? (typeof result.result === 'object' ? JSON.stringify(result.result) : String(result.result)) : undefined,
+						error: result.success ? undefined : result.error
+					};
+				});
 
-				// If there's existing content (like thinking), append tool info after it
-				if (existingContent.trim()) {
-					assistantNode.message.content = existingContent + '\n\n' + newContent;
-				} else {
-					assistantNode.message.content = newContent;
-				}
-
-				// Store structured tool call data for display
-				assistantNode.message.toolCalls = toolCalls.map(tc => ({
-					id: crypto.randomUUID(),
-					name: tc.function.name,
-					arguments: JSON.stringify(tc.function.arguments)
-				}));
+				// DON'T add tool results to message content - that's what floods the UI
+				// The results are stored in toolCalls and displayed by ToolCallDisplay
 			}
 
-			// Persist the assistant message with tool info (including any thinking content)
+			// Persist the assistant message (without flooding text content)
 			if (conversationId && assistantNode) {
 				const parentOfAssistant = assistantNode.parentId;
 				await addStoredMessage(
@@ -486,11 +485,11 @@
 				);
 			}
 
-			// Now stream a follow-up response that uses the tool results
-			// Add tool results as a system/tool message to context
+			// Add tool results as a hidden message (for model context, not displayed in UI)
 			const toolMessageId = chatState.addMessage({
-				role: 'user', // Ollama expects tool results in a user-like message
-				content: `Tool execution results:\n${toolResultContent}\n\nBased on these results, either provide a helpful response OR call another tool if you need more information.`
+				role: 'user',
+				content: `Tool execution results:\n${toolResultContent}\n\nBased on these results, either provide a helpful response OR call another tool if you need more information.`,
+				hidden: true
 			});
 
 			if (conversationId) {

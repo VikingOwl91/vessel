@@ -1,7 +1,6 @@
 package api
 
 import (
-	"io"
 	"net/http"
 	"net/url"
 	"time"
@@ -17,7 +16,10 @@ type URLFetchRequest struct {
 
 // URLFetchProxyHandler returns a handler that fetches URLs for the frontend
 // This bypasses CORS restrictions for the fetch_url tool
+// Uses curl/wget when available for better compatibility, falls back to native Go
 func URLFetchProxyHandler() gin.HandlerFunc {
+	fetcher := GetFetcher()
+
 	return func(c *gin.Context) {
 		var req URLFetchRequest
 		if err := c.ShouldBindJSON(&req); err != nil {
@@ -38,55 +40,50 @@ func URLFetchProxyHandler() gin.HandlerFunc {
 			return
 		}
 
-		// Create HTTP client with timeout
-		client := &http.Client{
-			Timeout: 15 * time.Second,
+		// Set up fetch options
+		opts := DefaultFetchOptions()
+		opts.Timeout = 30 * time.Second
+
+		// Set max length (default 500KB)
+		if req.MaxLength > 0 && req.MaxLength <= 500000 {
+			opts.MaxLength = req.MaxLength
 		}
 
-		// Create request
-		httpReq, err := http.NewRequestWithContext(c.Request.Context(), "GET", req.URL, nil)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create request: " + err.Error()})
-			return
-		}
-
-		// Set user agent
-		httpReq.Header.Set("User-Agent", "OllamaWebUI/1.0 (URL Fetch Proxy)")
-		httpReq.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
-
-		// Execute request
-		resp, err := client.Do(httpReq)
+		// Fetch the URL
+		result, err := fetcher.Fetch(c.Request.Context(), req.URL, opts)
 		if err != nil {
 			c.JSON(http.StatusBadGateway, gin.H{"error": "failed to fetch URL: " + err.Error()})
 			return
 		}
-		defer resp.Body.Close()
 
 		// Check status
-		if resp.StatusCode >= 400 {
-			c.JSON(http.StatusBadGateway, gin.H{"error": "HTTP " + resp.Status})
-			return
-		}
-
-		// Set max length (default 500KB)
-		maxLen := req.MaxLength
-		if maxLen <= 0 || maxLen > 500000 {
-			maxLen = 500000
-		}
-
-		// Read response body with limit
-		body, err := io.ReadAll(io.LimitReader(resp.Body, int64(maxLen)))
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to read response: " + err.Error()})
+		if result.StatusCode >= 400 {
+			c.JSON(http.StatusBadGateway, gin.H{
+				"error":  "HTTP " + http.StatusText(result.StatusCode),
+				"status": result.StatusCode,
+			})
 			return
 		}
 
 		// Return the content
 		c.JSON(http.StatusOK, gin.H{
-			"content":     string(body),
-			"contentType": resp.Header.Get("Content-Type"),
-			"url":         resp.Request.URL.String(), // Final URL after redirects
-			"status":      resp.StatusCode,
+			"content":     result.Content,
+			"contentType": result.ContentType,
+			"url":         result.FinalURL,
+			"status":      result.StatusCode,
+			"fetchMethod": string(result.Method),
+		})
+	}
+}
+
+// GetFetchMethodHandler returns a handler that reports the current fetch method
+func GetFetchMethodHandler() gin.HandlerFunc {
+	fetcher := GetFetcher()
+
+	return func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{
+			"method":    string(fetcher.Method()),
+			"hasChrome": fetcher.HasChrome(),
 		})
 	}
 }

@@ -62,6 +62,10 @@ func main() {
 		Handler: r,
 	}
 
+	// Initialize fetcher and log the method being used
+	fetcher := api.GetFetcher()
+	log.Printf("URL fetcher method: %s (headless Chrome: %v)", fetcher.Method(), fetcher.HasChrome())
+
 	// Graceful shutdown handling
 	go func() {
 		log.Printf("Server starting on port %s", *port)

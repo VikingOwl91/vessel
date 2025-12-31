@@ -1,7 +1,7 @@
 <script lang="ts">
 	/**
 	 * ToolCallDisplay - Beautiful tool call visualization
-	 * Shows tool name, formatted arguments, and status
+	 * Shows tool name, arguments, and results (collapsed by default)
 	 */
 
 	import type { ToolCall } from '$lib/types';
@@ -90,8 +90,75 @@
 		return labels[key] || key;
 	}
 
-	// Collapsed state per tool
+	/**
+	 * Parse result content (could be JSON or plain text)
+	 */
+	function parseResult(result: string | undefined): { type: string; summary: string; full: string } {
+		if (!result) return { type: 'empty', summary: 'No result', full: '' };
+
+		try {
+			const json = JSON.parse(result);
+
+			// Search results
+			if (json.results && Array.isArray(json.results) && json.query) {
+				const count = json.resultCount || json.results.length;
+				return {
+					type: 'search',
+					summary: `Found ${count} results for "${json.query}"`,
+					full: result
+				};
+			}
+
+			// Location result
+			if (json.location) {
+				const loc = json.location;
+				const place = loc.city ? `${loc.city}, ${loc.country || ''}` : 'Location detected';
+				return { type: 'location', summary: place, full: result };
+			}
+
+			// Fetch result with content/text
+			if (json.content || json.text) {
+				const text = json.content || json.text;
+				const title = json.title || json.url || 'Fetched content';
+				const chars = typeof text === 'string' ? text.length : 0;
+				return {
+					type: 'fetch',
+					summary: `${title} (${formatBytes(chars)} chars)`,
+					full: typeof text === 'string' ? text : result
+				};
+			}
+
+			// Generic JSON
+			return {
+				type: 'json',
+				summary: `JSON response (${formatBytes(result.length)})`,
+				full: JSON.stringify(json, null, 2)
+			};
+		} catch {
+			// Plain text result
+			const lines = result.split('\n').length;
+			const chars = result.length;
+			return {
+				type: 'text',
+				summary: `${lines} lines, ${formatBytes(chars)}`,
+				full: result
+			};
+		}
+	}
+
+	/**
+	 * Format byte size for display
+	 */
+	function formatBytes(bytes: number): string {
+		if (bytes < 1000) return `${bytes}`;
+		if (bytes < 1000000) return `${(bytes / 1000).toFixed(1)}K`;
+		return `${(bytes / 1000000).toFixed(1)}M`;
+	}
+
+	// Collapsed state per tool (arguments section)
 	let expandedCalls = $state<Set<string>>(new Set());
+	// Collapsed state for results (separate, collapsed by default)
+	let expandedResults = $state<Set<string>>(new Set());
 
 	function toggleExpand(id: string): void {
 		if (expandedCalls.has(id)) {
@@ -100,6 +167,15 @@
 			expandedCalls.add(id);
 		}
 		expandedCalls = new Set(expandedCalls);
+	}
+
+	function toggleResult(id: string): void {
+		if (expandedResults.has(id)) {
+			expandedResults.delete(id);
+		} else {
+			expandedResults.add(id);
+		}
+		expandedResults = new Set(expandedResults);
 	}
 </script>
 
@@ -162,7 +238,7 @@
 					</svg>
 				</button>
 
-				<!-- Expanded details -->
+				<!-- Expanded arguments -->
 				{#if isExpanded && argEntries.length > 0}
 					<div class="border-t border-slate-800 px-4 py-3">
 						<div class="space-y-2">
@@ -177,6 +253,51 @@
 								</div>
 							{/each}
 						</div>
+					</div>
+				{/if}
+
+				<!-- Result section (collapsed by default) -->
+				{#if call.result || call.error}
+					{@const hasResult = !!call.result}
+					{@const parsed = parseResult(call.result)}
+					{@const isResultExpanded = expandedResults.has(call.id)}
+
+					<div class="border-t border-slate-800">
+						<button
+							type="button"
+							onclick={() => toggleResult(call.id)}
+							class="flex w-full items-center gap-2 px-4 py-2 text-left text-sm transition-colors hover:bg-slate-800/50"
+						>
+							<!-- Status icon -->
+							{#if call.error}
+								<span class="text-red-400">✗</span>
+								<span class="flex-1 text-red-300">Error: {call.error}</span>
+							{:else}
+								<span class="text-emerald-400">✓</span>
+								<span class="flex-1 text-slate-400">{parsed.summary}</span>
+							{/if}
+
+							<!-- Expand arrow -->
+							{#if hasResult && parsed.full}
+								<svg
+									class="h-4 w-4 flex-shrink-0 text-slate-500 transition-transform duration-200"
+									class:rotate-180={isResultExpanded}
+									fill="none"
+									viewBox="0 0 24 24"
+									stroke="currentColor"
+									stroke-width="2"
+								>
+									<path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+								</svg>
+							{/if}
+						</button>
+
+						<!-- Expanded result content -->
+						{#if isResultExpanded && hasResult && parsed.full}
+							<div class="max-h-96 overflow-auto border-t border-slate-800/50 bg-slate-950/50 px-4 py-3">
+								<pre class="whitespace-pre-wrap break-words text-xs text-slate-400">{parsed.full.length > 10000 ? parsed.full.substring(0, 10000) + '\n\n... (truncated)' : parsed.full}</pre>
+							</div>
+						{/if}
 					</div>
 				{/if}
 			</div>

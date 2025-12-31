@@ -23,8 +23,21 @@ export class ChatState {
 	streamingMessageId = $state<string | null>(null);
 	streamBuffer = $state('');
 
-	// Derived: Get visible messages along the active path
+	// Derived: Get visible messages along the active path (excluding hidden messages for UI)
 	visibleMessages = $derived.by(() => {
+		const messages: MessageNode[] = [];
+		for (const id of this.activePath) {
+			const node = this.messageTree.get(id);
+			// Skip hidden messages (e.g., internal tool result context)
+			if (node && !node.message.hidden) {
+				messages.push(node);
+			}
+		}
+		return messages;
+	});
+
+	// Derived: Get ALL messages along active path (including hidden, for API calls)
+	allMessages = $derived.by(() => {
 		const messages: MessageNode[] = [];
 		for (const id of this.activePath) {
 			const node = this.messageTree.get(id);
