@@ -89,6 +89,9 @@
 		}
 
 		onSend?.(content, images);
+
+		// Keep focus on input after sending
+		requestAnimationFrame(() => focusInput());
 	}
 
 	/**
@@ -105,11 +108,18 @@
 		pendingImages = images;
 	}
 
-	// Focus textarea on mount
-	$effect(() => {
+	/**
+	 * Focus the textarea
+	 */
+	function focusInput(): void {
 		if (textareaElement && !disabled) {
 			textareaElement.focus();
 		}
+	}
+
+	// Focus textarea on mount
+	$effect(() => {
+		focusInput();
 	});
 </script>
 
@@ -119,7 +129,7 @@
 		<ImageUpload
 			images={pendingImages}
 			onImagesChange={handleImagesChange}
-			disabled={disabled || isStreaming}
+			{disabled}
 		/>
 	{/if}
 
@@ -147,14 +157,14 @@
 			</div>
 		{/if}
 
-		<!-- Textarea -->
+		<!-- Textarea - allow typing during streaming, only block sending -->
 		<textarea
 			bind:this={textareaElement}
 			bind:value={inputValue}
 			oninput={handleInput}
 			onkeydown={handleKeydown}
 			{placeholder}
-			disabled={disabled || isStreaming}
+			{disabled}
 			rows="1"
 			class="max-h-[200px] min-h-[40px] flex-1 resize-none bg-transparent px-1 py-1.5 text-slate-100 placeholder-slate-500 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
 			aria-label="Message input"
