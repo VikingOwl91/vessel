@@ -1,11 +1,13 @@
 <script lang="ts">
 	/**
 	 * ChatInput - Message input area with auto-growing textarea
-	 * Handles send/stop actions, keyboard shortcuts, and image uploads
+	 * Handles send/stop actions, keyboard shortcuts, and file uploads
 	 */
 
 	import { modelsState } from '$lib/stores';
-	import ImageUpload from './ImageUpload.svelte';
+	import type { FileAttachment } from '$lib/types/attachment.js';
+	import { formatAttachmentsForMessage } from '$lib/utils/file-processor.js';
+	import FileUpload from './FileUpload.svelte';
 
 	interface Props {
 		onSend?: (content: string, images?: string[]) => void;
@@ -27,11 +29,16 @@
 	let inputValue = $state('');
 	let textareaElement: HTMLTextAreaElement | null = $state(null);
 
-	// Image state
+	// Image state (for vision models)
 	let pendingImages = $state<string[]>([]);
 
+	// File attachment state (text/PDF for all models)
+	let pendingAttachments = $state<FileAttachment[]>([]);
+
 	// Derived state
-	const hasContent = $derived(inputValue.trim().length > 0 || pendingImages.length > 0);
+	const hasContent = $derived(
+		inputValue.trim().length > 0 || pendingImages.length > 0 || pendingAttachments.length > 0
+	);
 	const canSend = $derived(hasContent && !disabled && !isStreaming);
 	const showStopButton = $derived(isStreaming);
 
@@ -76,12 +83,21 @@
 	function handleSend(): void {
 		if (!canSend) return;
 
-		const content = inputValue.trim();
+		let content = inputValue.trim();
 		const images = pendingImages.length > 0 ? [...pendingImages] : undefined;
 
-		// Clear input and images
+		// Prepend file attachments content to the message
+		if (pendingAttachments.length > 0) {
+			const attachmentContent = formatAttachmentsForMessage(pendingAttachments);
+			if (attachmentContent) {
+				content = attachmentContent + (content ? '\n\n' + content : '');
+			}
+		}
+
+		// Clear input, images, and attachments
 		inputValue = '';
 		pendingImages = [];
+		pendingAttachments = [];
 
 		// Reset textarea height
 		if (textareaElement) {
@@ -102,10 +118,17 @@
 	}
 
 	/**
-	 * Handle image changes from ImageUpload
+	 * Handle image changes from FileUpload
 	 */
 	function handleImagesChange(images: string[]): void {
 		pendingImages = images;
+	}
+
+	/**
+	 * Handle attachment changes from FileUpload
+	 */
+	function handleAttachmentsChange(attachments: FileAttachment[]): void {
+		pendingAttachments = attachments;
 	}
 
 	/**
@@ -124,36 +147,56 @@
 </script>
 
 <div class="relative space-y-2">
-	<!-- Image upload area (only shown for vision models) -->
-	{#if isVisionModel}
-		<ImageUpload
-			images={pendingImages}
-			onImagesChange={handleImagesChange}
-			{disabled}
-		/>
-	{/if}
+	<!-- File upload area (images for vision models, text/PDFs for all) -->
+	<FileUpload
+		images={pendingImages}
+		onImagesChange={handleImagesChange}
+		attachments={pendingAttachments}
+		onAttachmentsChange={handleAttachmentsChange}
+		supportsVision={isVisionModel}
+		{disabled}
+	/>
 
 	<div
 		class="flex items-end gap-3 rounded-2xl border border-slate-700/50 bg-slate-800/80 p-3 backdrop-blur transition-all focus-within:border-slate-600 focus-within:bg-slate-800"
 	>
-		<!-- Image indicator badge (for vision models) -->
-		{#if isVisionModel && pendingImages.length > 0}
-			<div class="flex h-9 items-center">
-				<span class="flex items-center gap-1.5 rounded-lg bg-violet-500/20 px-2.5 py-1 text-xs font-medium text-violet-300">
-					<svg
-						xmlns="http://www.w3.org/2000/svg"
-						viewBox="0 0 20 20"
-						fill="currentColor"
-						class="h-3.5 w-3.5"
-					>
-						<path
-							fill-rule="evenodd"
-							d="M1 5.25A2.25 2.25 0 0 1 3.25 3h13.5A2.25 2.25 0 0 1 19 5.25v9.5A2.25 2.25 0 0 1 16.75 17H3.25A2.25 2.25 0 0 1 1 14.75v-9.5Zm1.5 5.81v3.69c0 .414.336.75.75.75h13.5a.75.75 0 0 0 .75-.75v-2.69l-2.22-2.219a.75.75 0 0 0-1.06 0l-1.91 1.909.47.47a.75.75 0 1 1-1.06 1.06L6.53 8.091a.75.75 0 0 0-1.06 0l-2.97 2.97ZM12 7a1 1 0 1 1-2 0 1 1 0 0 1 2 0Z"
-							clip-rule="evenodd"
-						/>
-					</svg>
-					{pendingImages.length}
-				</span>
+		<!-- Attachment indicators -->
+		{#if pendingImages.length > 0 || pendingAttachments.length > 0}
+			<div class="flex h-9 items-center gap-1.5">
+				{#if pendingImages.length > 0}
+					<span class="flex items-center gap-1 rounded-lg bg-violet-500/20 px-2 py-1 text-xs font-medium text-violet-300" title="Images attached">
+						<svg
+							xmlns="http://www.w3.org/2000/svg"
+							viewBox="0 0 20 20"
+							fill="currentColor"
+							class="h-3.5 w-3.5"
+						>
+							<path
+								fill-rule="evenodd"
+								d="M1 5.25A2.25 2.25 0 0 1 3.25 3h13.5A2.25 2.25 0 0 1 19 5.25v9.5A2.25 2.25 0 0 1 16.75 17H3.25A2.25 2.25 0 0 1 1 14.75v-9.5Zm1.5 5.81v3.69c0 .414.336.75.75.75h13.5a.75.75 0 0 0 .75-.75v-2.69l-2.22-2.219a.75.75 0 0 0-1.06 0l-1.91 1.909.47.47a.75.75 0 1 1-1.06 1.06L6.53 8.091a.75.75 0 0 0-1.06 0l-2.97 2.97ZM12 7a1 1 0 1 1-2 0 1 1 0 0 1 2 0Z"
+								clip-rule="evenodd"
+							/>
+						</svg>
+						{pendingImages.length}
+					</span>
+				{/if}
+				{#if pendingAttachments.length > 0}
+					<span class="flex items-center gap-1 rounded-lg bg-emerald-500/20 px-2 py-1 text-xs font-medium text-emerald-300" title="Files attached">
+						<svg
+							xmlns="http://www.w3.org/2000/svg"
+							viewBox="0 0 20 20"
+							fill="currentColor"
+							class="h-3.5 w-3.5"
+						>
+							<path
+								fill-rule="evenodd"
+								d="M15.621 4.379a3 3 0 0 0-4.242 0l-7 7a3 3 0 0 0 4.241 4.243h.001l.497-.5a.75.75 0 0 1 1.064 1.057l-.498.501-.002.002a4.5 4.5 0 0 1-6.364-6.364l7-7a4.5 4.5 0 0 1 6.368 6.36l-3.455 3.553A2.625 2.625 0 1 1 9.52 9.52l3.45-3.451a.75.75 0 1 1 1.061 1.06l-3.45 3.451a1.125 1.125 0 0 0 1.587 1.595l3.454-3.553a3 3 0 0 0 0-4.242Z"
+								clip-rule="evenodd"
+							/>
+						</svg>
+						{pendingAttachments.length}
+					</span>
+				{/if}
 			</div>
 		{/if}
 
@@ -220,9 +263,11 @@
 		<kbd class="rounded bg-slate-800 px-1 py-0.5 font-mono">Enter</kbd> send
 		<span class="mx-1.5 text-slate-700">·</span>
 		<kbd class="rounded bg-slate-800 px-1 py-0.5 font-mono">Shift+Enter</kbd> new line
+		<span class="mx-1.5 text-slate-700">·</span>
 		{#if isVisionModel}
-			<span class="mx-1.5 text-slate-700">·</span>
-			<span class="text-violet-500/70">images supported</span>
+			<span class="text-violet-500/70">images</span>
+			<span class="mx-1 text-slate-700">+</span>
 		{/if}
+		<span class="text-slate-500">files supported</span>
 	</p>
 </div>

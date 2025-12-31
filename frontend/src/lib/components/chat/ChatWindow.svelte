@@ -36,9 +36,16 @@
 		mode?: 'new' | 'conversation';
 		onFirstMessage?: (content: string, images?: string[]) => Promise<void>;
 		conversation?: Conversation | null;
+		/** Bindable prop for thinking mode - synced with parent in 'new' mode */
+		thinkingEnabled?: boolean;
 	}
 
-	let { mode = 'new', onFirstMessage, conversation }: Props = $props();
+	let {
+		mode = 'new',
+		onFirstMessage,
+		conversation,
+		thinkingEnabled = $bindable(true)
+	}: Props = $props();
 
 	// Local state for abort controller
 	let abortController: AbortController | null = $state(null);
@@ -53,6 +60,12 @@
 	let ragEnabled = $state(true);
 	let hasKnowledgeBase = $state(false);
 	let lastRagContext = $state<string | null>(null);
+
+	// Derived: Check if selected model supports thinking
+	const supportsThinking = $derived.by(() => {
+		const caps = modelsState.selectedCapabilities;
+		return caps.includes('thinking');
+	});
 
 	// Check for knowledge base on mount
 	$effect(() => {
@@ -273,7 +286,7 @@
 			let messages = getMessagesForApi();
 			const tools = getToolsForApi();
 
-			// Build system prompt from active prompt + RAG context
+			// Build system prompt from active prompt + thinking + RAG context
 			const systemParts: string[] = [];
 
 			// Wait for prompts to be loaded, then add system prompt if active
@@ -283,6 +296,15 @@
 				systemParts.push(activePrompt.content);
 				console.log('[Chat] Using system prompt:', activePrompt.name);
 			}
+
+			// Log thinking mode status (now using native API support, not prompt-based)
+			console.log('[Chat] Thinking mode check:', {
+				supportsThinking,
+				thinkingEnabled,
+				selectedModel: modelsState.selectedId,
+				selectedCapabilities: modelsState.selectedCapabilities
+			});
+			// Note: Thinking is now handled via the `think: true` API parameter instead of prompt injection
 
 			// RAG: Retrieve relevant context for the last user message
 			const lastUserMessage = messages.filter(m => m.role === 'user').pop();
@@ -316,14 +338,37 @@
 			console.log('[Chat] USE_FUNCTION_MODEL:', USE_FUNCTION_MODEL);
 			console.log('[Chat] Using model:', chatModel, '(original:', model, ')');
 
+			// Determine if we should use native thinking mode
+			const useNativeThinking = supportsThinking && thinkingEnabled;
+			console.log('[Chat] Native thinking mode:', useNativeThinking);
+
+			// Track thinking content during streaming
+			let streamingThinking = '';
+			let thinkingClosed = false;
+
 			await ollamaClient.streamChatWithCallbacks(
 				{
 					model: chatModel,
 					messages,
-					tools
+					tools,
+					think: useNativeThinking
 				},
 				{
+					onThinkingToken: (token) => {
+						// Accumulate thinking and update the message
+						if (!streamingThinking) {
+							// Start the thinking block
+							chatState.appendToStreaming('<think>');
+						}
+						streamingThinking += token;
+						chatState.appendToStreaming(token);
+					},
 					onToken: (token) => {
+						// Close thinking block when content starts
+						if (streamingThinking && !thinkingClosed) {
+							chatState.appendToStreaming('</think>\n\n');
+							thinkingClosed = true;
+						}
 						chatState.appendToStreaming(token);
 					},
 					onToolCall: (toolCalls) => {
@@ -332,6 +377,12 @@
 						console.log('Tool calls received:', toolCalls);
 					},
 					onComplete: async () => {
+						// Close thinking block if it was opened but not closed (e.g., tool calls without content)
+						if (streamingThinking && !thinkingClosed) {
+							chatState.appendToStreaming('</think>\n\n');
+							thinkingClosed = true;
+						}
+
 						chatState.finishStreaming();
 						abortController = null;
 
@@ -405,7 +456,17 @@
 			// Update the assistant message with tool call info and structured data
 			const assistantNode = chatState.messageTree.get(assistantMessageId);
 			if (assistantNode) {
-				assistantNode.message.content = toolCallInfo + '\n\n' + toolResultContent;
+				// Preserve any thinking content that was already streamed
+				const existingContent = assistantNode.message.content || '';
+				const newContent = toolCallInfo + '\n\n' + toolResultContent;
+
+				// If there's existing content (like thinking), append tool info after it
+				if (existingContent.trim()) {
+					assistantNode.message.content = existingContent + '\n\n' + newContent;
+				} else {
+					assistantNode.message.content = newContent;
+				}
+
 				// Store structured tool call data for display
 				assistantNode.message.toolCalls = toolCalls.map(tc => ({
 					id: crypto.randomUUID(),
@@ -414,18 +475,15 @@
 				}));
 			}
 
-			// Persist the assistant message with tool info
-			if (conversationId) {
-				const parentNode = chatState.messageTree.get(assistantMessageId);
-				if (parentNode) {
-					const parentOfAssistant = parentNode.parentId;
-					await addStoredMessage(
-						conversationId,
-						{ role: 'assistant', content: toolCallInfo + '\n\n' + toolResultContent },
-						parentOfAssistant,
-						assistantMessageId
-					);
-				}
+			// Persist the assistant message with tool info (including any thinking content)
+			if (conversationId && assistantNode) {
+				const parentOfAssistant = assistantNode.parentId;
+				await addStoredMessage(
+					conversationId,
+					{ role: 'assistant', content: assistantNode.message.content },
+					parentOfAssistant,
+					assistantMessageId
+				);
 			}
 
 			// Now stream a follow-up response that uses the tool results
@@ -621,6 +679,7 @@
 			<MessageList
 				onRegenerate={handleRegenerate}
 				onEditMessage={handleEditMessage}
+				showThinking={thinkingEnabled}
 			/>
 		</div>
 	{:else}
@@ -642,6 +701,29 @@
 			{#if hasMessages}
 				<div class="px-4 pt-3">
 					<ContextUsageBar />
+				</div>
+			{/if}
+
+			<!-- Chat options bar (thinking mode toggle) -->
+			{#if supportsThinking}
+				<div class="flex items-center justify-end gap-3 px-4 pt-3">
+					<label class="flex cursor-pointer items-center gap-2 text-xs text-slate-400">
+						<span class="flex items-center gap-1">
+							<span class="text-amber-400">🧠</span>
+							Thinking mode
+						</span>
+						<button
+							type="button"
+							role="switch"
+							aria-checked={thinkingEnabled}
+							onclick={() => (thinkingEnabled = !thinkingEnabled)}
+							class="relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2 focus:ring-offset-slate-900 {thinkingEnabled ? 'bg-amber-600' : 'bg-slate-600'}"
+						>
+							<span
+								class="pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out {thinkingEnabled ? 'translate-x-4' : 'translate-x-0'}"
+							></span>
+						</button>
+					</label>
 				</div>
 			{/if}
 

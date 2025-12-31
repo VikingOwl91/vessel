@@ -19,6 +19,15 @@
 	let ragEnabled = $state(true);
 	let hasKnowledgeBase = $state(false);
 
+	// Thinking mode state (for reasoning models)
+	let thinkingEnabled = $state(true);
+
+	// Derived: Check if selected model supports thinking
+	const supportsThinking = $derived.by(() => {
+		const caps = modelsState.selectedCapabilities;
+		return caps.includes('thinking');
+	});
+
 	/**
 	 * Get tool definitions for the API call
 	 */
@@ -131,6 +140,15 @@
 				console.log('[NewChat] Using system prompt:', activePrompt.name);
 			}
 
+			// Log thinking mode status (now using native API support, not prompt-based)
+			console.log('[NewChat] Thinking mode check:', {
+				supportsThinking,
+				thinkingEnabled,
+				selectedModel: modelsState.selectedId,
+				selectedCapabilities: modelsState.selectedCapabilities
+			});
+			// Note: Thinking is now handled via the `think: true` API parameter instead of prompt injection
+
 			// Add RAG context if available
 			const ragContext = await retrieveRagContext(content);
 			if (ragContext) {
@@ -159,10 +177,32 @@
 			console.log('[NewChat] Tool names:', tools?.map(t => t.function.name) ?? []);
 			console.log('[NewChat] Using model:', chatModel, '(original:', model, ')');
 
+			// Determine if we should use native thinking mode
+			const useNativeThinking = supportsThinking && thinkingEnabled;
+			console.log('[NewChat] Native thinking mode:', useNativeThinking);
+
+			// Track thinking content during streaming
+			let streamingThinking = '';
+			let thinkingClosed = false;
+
 			await ollamaClient.streamChatWithCallbacks(
-				{ model: chatModel, messages, tools },
+				{ model: chatModel, messages, tools, think: useNativeThinking },
 				{
+					onThinkingToken: (token) => {
+						// Accumulate thinking and update the message
+						if (!streamingThinking) {
+							// Start the thinking block
+							chatState.appendToStreaming('<think>');
+						}
+						streamingThinking += token;
+						chatState.appendToStreaming(token);
+					},
 					onToken: (token) => {
+						// Close thinking block when content starts
+						if (streamingThinking && !thinkingClosed) {
+							chatState.appendToStreaming('</think>\n\n');
+							thinkingClosed = true;
+						}
 						chatState.appendToStreaming(token);
 					},
 					onToolCall: (toolCalls) => {
@@ -170,6 +210,12 @@
 						console.log('[NewChat] Tool calls received:', toolCalls);
 					},
 					onComplete: async () => {
+						// Close thinking block if it was opened but not closed (e.g., tool calls without content)
+						if (streamingThinking && !thinkingClosed) {
+							chatState.appendToStreaming('</think>\n\n');
+							thinkingClosed = true;
+						}
+
 						chatState.finishStreaming();
 
 						// Handle tool calls if received
@@ -195,6 +241,9 @@
 							);
 							await updateConversation(conversationId, {});
 							conversationsState.update(conversationId, {});
+
+							// Generate a smarter title in the background (don't await)
+							generateSmartTitle(conversationId, content, node.message.content);
 						}
 					},
 					onError: (error) => {
@@ -240,7 +289,17 @@
 
 			const assistantNode = chatState.messageTree.get(assistantMessageId);
 			if (assistantNode) {
-				assistantNode.message.content = toolCallInfo + '\n\n' + toolResultContent;
+				// Preserve any thinking content that was already streamed
+				const existingContent = assistantNode.message.content || '';
+				const newContent = toolCallInfo + '\n\n' + toolResultContent;
+
+				// If there's existing content (like thinking), append tool info after it
+				if (existingContent.trim()) {
+					assistantNode.message.content = existingContent + '\n\n' + newContent;
+				} else {
+					assistantNode.message.content = newContent;
+				}
+
 				// Store structured tool call data for display
 				assistantNode.message.toolCalls = toolCalls.map(tc => ({
 					id: crypto.randomUUID(),
@@ -249,10 +308,10 @@
 				}));
 			}
 
-			// Persist tool call result
+			// Persist tool call result (including any thinking content)
 			await addStoredMessage(
 				conversationId,
-				{ role: 'assistant', content: toolCallInfo + '\n\n' + toolResultContent },
+				{ role: 'assistant', content: assistantNode?.message.content || '' },
 				userMessageId,
 				assistantMessageId
 			);
@@ -347,8 +406,58 @@
 
 		return firstSentence.substring(0, 47) + '...';
 	}
+
+	/**
+	 * Generate a better title using the LLM after the first response
+	 * Runs in the background, doesn't block the UI
+	 */
+	async function generateSmartTitle(
+		conversationId: string,
+		userMessage: string,
+		assistantMessage: string
+	): Promise<void> {
+		try {
+			// Use a small, fast model for title generation if available, otherwise use selected
+			const model = modelsState.selectedId;
+			if (!model) return;
+
+			// Strip thinking blocks from assistant message for cleaner title generation
+			const cleanedAssistant = assistantMessage
+				.replace(/<think>[\s\S]*?<\/think>/g, '')
+				.replace(/<thinking>[\s\S]*?<\/thinking>/g, '')
+				.trim();
+
+			const response = await ollamaClient.chat({
+				model,
+				messages: [
+					{
+						role: 'system',
+						content: 'Generate a very short, concise title (3-6 words max) for this conversation. Output ONLY the title, no quotes, no explanation.'
+					},
+					{
+						role: 'user',
+						content: `User: ${userMessage.substring(0, 200)}\n\nAssistant: ${cleanedAssistant.substring(0, 300)}`
+					}
+				]
+			});
+
+			const newTitle = response.message.content
+				.trim()
+				.replace(/^["']|["']$/g, '') // Remove quotes
+				.substring(0, 50);
+
+			if (newTitle && newTitle.length > 0) {
+				await updateConversation(conversationId, { title: newTitle });
+				conversationsState.update(conversationId, { title: newTitle });
+				console.log('[NewChat] Updated title to:', newTitle);
+			}
+		} catch (error) {
+			console.error('[NewChat] Failed to generate smart title:', error);
+			// Silently fail - keep the original title
+		}
+	}
 </script>
 
 <div class="flex h-full flex-col">
-	<ChatWindow mode="new" onFirstMessage={handleFirstMessage} />
+	<ChatWindow mode="new" onFirstMessage={handleFirstMessage} bind:thinkingEnabled />
 </div>

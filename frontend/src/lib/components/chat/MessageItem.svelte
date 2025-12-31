@@ -16,6 +16,8 @@
 		branchInfo: BranchInfo | null;
 		isStreaming?: boolean;
 		isLast?: boolean;
+		/** Whether to show thinking blocks in messages */
+		showThinking?: boolean;
 		onBranchSwitch?: (direction: 'prev' | 'next') => void;
 		onRegenerate?: () => void;
 		onEdit?: (newContent: string) => void;
@@ -26,6 +28,7 @@
 		branchInfo,
 		isStreaming = false,
 		isLast = false,
+		showThinking = true,
 		onBranchSwitch,
 		onRegenerate,
 		onEdit
@@ -189,6 +192,7 @@
 						content={node.message.content}
 						images={node.message.images}
 						{isStreaming}
+						{showThinking}
 					/>
 				{/if}
 

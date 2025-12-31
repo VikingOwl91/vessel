@@ -4,9 +4,22 @@
  */
 
 import type { OllamaModel, ModelGroup } from '$lib/types/model.js';
+import type { OllamaCapability } from '$lib/ollama/types.js';
+import { ollamaClient } from '$lib/ollama/client.js';
 
-/** Known vision model families/patterns */
+/** Known vision model families/patterns (fallback if API doesn't report) */
 const VISION_PATTERNS = ['llava', 'bakllava', 'moondream', 'vision'];
+
+/** Capability display metadata */
+export const CAPABILITY_INFO: Record<string, { label: string; icon: string; color: string }> = {
+	vision: { label: 'Vision', icon: '👁', color: 'purple' },
+	tools: { label: 'Tools', icon: '🔧', color: 'blue' },
+	code: { label: 'Code', icon: '💻', color: 'emerald' },
+	thinking: { label: 'Reasoning', icon: '🧠', color: 'amber' },
+	uncensored: { label: 'Uncensored', icon: '🔓', color: 'red' },
+	cloud: { label: 'Cloud', icon: '☁️', color: 'sky' },
+	embedding: { label: 'Embedding', icon: '📊', color: 'slate' }
+};
 
 /**
  * Middleware models that should NOT appear in the chat model selector
@@ -51,6 +64,10 @@ export class ModelsState {
 	selectedId = $state<string | null>(null);
 	isLoading = $state(false);
 	error = $state<string | null>(null);
+
+	// Capabilities cache: modelName -> capabilities array
+	private capabilitiesCache = $state<Map<string, OllamaCapability[]>>(new Map());
+	private capabilitiesFetching = new Set<string>();
 
 	// Derived: Currently selected model
 	selected = $derived.by(() => {
@@ -205,6 +222,95 @@ export class ModelsState {
 	 */
 	hasModel(modelName: string): boolean {
 		return this.available.some((m) => m.name === modelName);
+	}
+
+	// =========================================================================
+	// Capabilities
+	// =========================================================================
+
+	/**
+	 * Get cached capabilities for a model
+	 * Returns undefined if not yet fetched
+	 */
+	getCapabilities(modelName: string): OllamaCapability[] | undefined {
+		return this.capabilitiesCache.get(modelName);
+	}
+
+	/**
+	 * Check if a model has a specific capability
+	 */
+	hasCapability(modelName: string, capability: OllamaCapability): boolean {
+		const caps = this.capabilitiesCache.get(modelName);
+		if (caps) {
+			return caps.includes(capability);
+		}
+		// Fallback to pattern matching for vision if not fetched
+		if (capability === 'vision') {
+			const model = this.getByName(modelName);
+			return model ? isVisionModel(model) : false;
+		}
+		return false;
+	}
+
+	/**
+	 * Fetch capabilities for a model from the API
+	 * Uses caching to avoid repeated requests
+	 */
+	async fetchCapabilities(modelName: string): Promise<OllamaCapability[]> {
+		// Return cached if available
+		const cached = this.capabilitiesCache.get(modelName);
+		if (cached) return cached;
+
+		// Avoid duplicate fetches
+		if (this.capabilitiesFetching.has(modelName)) {
+			// Wait a bit and check cache again
+			await new Promise((r) => setTimeout(r, 100));
+			return this.capabilitiesCache.get(modelName) ?? [];
+		}
+
+		this.capabilitiesFetching.add(modelName);
+
+		try {
+			const response = await ollamaClient.showModel(modelName);
+			const capabilities = response.capabilities ?? [];
+
+			// Update cache reactively
+			const newCache = new Map(this.capabilitiesCache);
+			newCache.set(modelName, capabilities);
+			this.capabilitiesCache = newCache;
+
+			return capabilities;
+		} catch (err) {
+			console.warn(`Failed to fetch capabilities for ${modelName}:`, err);
+			// Fallback to pattern matching for vision
+			const model = this.getByName(modelName);
+			if (model && isVisionModel(model)) {
+				const fallback: OllamaCapability[] = ['vision'];
+				const newCache = new Map(this.capabilitiesCache);
+				newCache.set(modelName, fallback);
+				this.capabilitiesCache = newCache;
+				return fallback;
+			}
+			return [];
+		} finally {
+			this.capabilitiesFetching.delete(modelName);
+		}
+	}
+
+	/**
+	 * Fetch capabilities for all available models
+	 */
+	async fetchAllCapabilities(): Promise<void> {
+		const promises = this.chatModels.map((m) => this.fetchCapabilities(m.name));
+		await Promise.allSettled(promises);
+	}
+
+	/**
+	 * Get capabilities for selected model (cached)
+	 */
+	get selectedCapabilities(): OllamaCapability[] {
+		if (!this.selectedId) return [];
+		return this.capabilitiesCache.get(this.selectedId) ?? [];
 	}
 }
 

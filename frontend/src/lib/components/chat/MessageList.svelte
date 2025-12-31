@@ -11,9 +11,11 @@
 	interface Props {
 		onRegenerate?: () => void;
 		onEditMessage?: (messageId: string, newContent: string) => void;
+		/** Whether to show thinking blocks in messages */
+		showThinking?: boolean;
 	}
 
-	const { onRegenerate, onEditMessage }: Props = $props();
+	const { onRegenerate, onEditMessage, showThinking = true }: Props = $props();
 
 	// Reference to scroll container and anchor element
 	let scrollContainer: HTMLDivElement | null = $state(null);
@@ -162,6 +164,7 @@
 					branchInfo={getBranchInfo(node)}
 					isStreaming={isStreamingMessage(node)}
 					isLast={isLastMessage(index)}
+					{showThinking}
 					onBranchSwitch={(direction) => handleBranchSwitch(node.id, direction)}
 					onRegenerate={onRegenerate}
 					onEdit={(newContent) => onEditMessage?.(node.id, newContent)}

@@ -74,6 +74,8 @@ export interface OllamaMessage {
 	images?: string[];
 	/** Tool calls made by the assistant */
 	tool_calls?: OllamaToolCall[];
+	/** Thinking/reasoning content from reasoning models (when think: true) */
+	thinking?: string;
 }
 
 // ============================================================================
@@ -169,6 +171,8 @@ export interface OllamaChatRequest {
 	options?: OllamaModelOptions;
 	/** How long to keep model loaded (e.g., "5m", "1h", "-1" for indefinite) */
 	keep_alive?: string;
+	/** Enable thinking mode for reasoning models (qwen3, deepseek-r1, etc.) */
+	think?: boolean;
 }
 
 /** Performance metrics in chat response */
@@ -317,6 +321,18 @@ export interface OllamaShowRequest {
 	verbose?: boolean;
 }
 
+/** Model capability types reported by Ollama */
+export type OllamaCapability =
+	| 'completion'      // Text generation
+	| 'vision'          // Image analysis
+	| 'tools'           // Function calling
+	| 'embedding'       // Vector embeddings
+	| 'thinking'        // Reasoning/CoT
+	| 'code'            // Coding optimized
+	| 'uncensored'      // No guardrails
+	| 'cloud'           // Cloud offloading
+	| string;           // Allow other capabilities
+
 /** Response from POST /api/show */
 export interface OllamaShowResponse {
 	license?: string;
@@ -326,6 +342,8 @@ export interface OllamaShowResponse {
 	details: OllamaModelDetails;
 	model_info?: Record<string, unknown>;
 	modified_at: string;
+	/** Model capabilities (vision, tools, code, etc.) */
+	capabilities?: OllamaCapability[];
 }
 
 // ============================================================================

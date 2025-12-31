@@ -415,6 +415,10 @@ export class OllamaClient {
 			request.keep_alive = options.keepAlive;
 		}
 
+		if (options.think !== undefined) {
+			request.think = options.think;
+		}
+
 		return request;
 	}
 
@@ -461,6 +465,8 @@ export interface ChatOptions {
 	keepAlive?: string;
 	/** Request timeout in milliseconds */
 	timeoutMs?: number;
+	/** Enable thinking mode for reasoning models (qwen3, deepseek-r1, etc.) */
+	think?: boolean;
 }
 
 /** Result of connection test */

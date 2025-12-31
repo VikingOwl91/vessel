@@ -9,18 +9,25 @@
 	import CodeBlock from './CodeBlock.svelte';
 	import HtmlPreview from './HtmlPreview.svelte';
 	import ToolResultDisplay from './ToolResultDisplay.svelte';
+	import ThinkingBlock from './ThinkingBlock.svelte';
 	import { base64ToDataUrl } from '$lib/ollama/image-processor';
 
 	interface Props {
 		content: string;
 		images?: string[];
 		isStreaming?: boolean;
+		/** Whether to show thinking blocks (hide when thinking mode is disabled) */
+		showThinking?: boolean;
 	}
 
-	const { content, images, isStreaming = false }: Props = $props();
+	const { content, images, isStreaming = false, showThinking = true }: Props = $props();
 
 	// Pattern to find fenced code blocks
 	const CODE_BLOCK_PATTERN = /```(\w+)?\n([\s\S]*?)```/g;
+
+	// Pattern to find thinking blocks (used by reasoning models)
+	// Supports both <thinking>...</thinking> and <think>...</think> (qwen3 format)
+	const THINKING_PATTERN = /<(?:thinking|think)>([\s\S]*?)<\/(?:thinking|think)>/g;
 
 	// Pattern to detect tool results in various formats
 	const TOOL_RESULT_PATTERN = /Tool result:\s*(\{[\s\S]*?\}|\S[\s\S]*?)(?=\n\n|$)/;
@@ -36,7 +43,7 @@
 	const PREVIEW_LANGUAGES = ['html', 'htm'];
 
 	interface ContentPart {
-		type: 'text' | 'code' | 'tool-result';
+		type: 'text' | 'code' | 'tool-result' | 'thinking';
 		content: string;
 		language?: string;
 		showPreview?: boolean;
@@ -100,10 +107,58 @@
 	}
 
 	/**
-	 * Parse content into parts (text, code blocks, and tool results)
+	 * Extract thinking blocks and return remaining text
+	 * Handles both complete and unclosed (streaming) thinking blocks
 	 */
-	function parseContent(text: string): ContentPart[] {
+	function extractThinkingBlocks(text: string): { thinkingParts: ContentPart[]; remainingText: string; isThinkingInProgress: boolean } {
+		const thinkingParts: ContentPart[] = [];
+		THINKING_PATTERN.lastIndex = 0;
+
+		let remainingText = text;
+		let match;
+		let isThinkingInProgress = false;
+
+		// Find all complete thinking blocks
+		while ((match = THINKING_PATTERN.exec(text)) !== null) {
+			thinkingParts.push({
+				type: 'thinking',
+				content: match[1].trim()
+			});
+		}
+
+		// Remove complete thinking blocks from text
+		remainingText = text.replace(THINKING_PATTERN, '').trim();
+
+		// Check for unclosed thinking block during streaming
+		// Pattern: starts with <think> but no closing tag
+		const unclosedPattern = /^<(?:thinking|think)>([\s\S]*)$/;
+		const unclosedMatch = remainingText.match(unclosedPattern);
+		if (unclosedMatch && isStreaming) {
+			// This is an in-progress thinking block
+			thinkingParts.push({
+				type: 'thinking',
+				content: unclosedMatch[1].trim()
+			});
+			remainingText = '';
+			isThinkingInProgress = true;
+		}
+
+		return { thinkingParts, remainingText, isThinkingInProgress };
+	}
+
+	/**
+	 * Parse content into parts (text, code blocks, thinking, and tool results)
+	 */
+	function parseContent(text: string): { parts: ContentPart[]; isThinkingInProgress: boolean } {
 		const parts: ContentPart[] = [];
+
+		// First, extract thinking blocks (they should appear at the top)
+		const { thinkingParts, remainingText, isThinkingInProgress } = extractThinkingBlocks(text);
+
+		// Add thinking parts first
+		parts.push(...thinkingParts);
+
+		// Now parse the remaining text for code blocks and tool results
 		let lastIndex = 0;
 
 		// Reset regex state
@@ -111,10 +166,10 @@
 
 		// Find all code blocks
 		let match;
-		while ((match = CODE_BLOCK_PATTERN.exec(text)) !== null) {
+		while ((match = CODE_BLOCK_PATTERN.exec(remainingText)) !== null) {
 			// Add text before this code block (may contain tool results)
 			if (match.index > lastIndex) {
-				const textBefore = text.slice(lastIndex, match.index);
+				const textBefore = remainingText.slice(lastIndex, match.index);
 				if (textBefore.trim()) {
 					if (containsToolResult(textBefore)) {
 						parts.push(...parseTextForToolResults(textBefore));
@@ -137,8 +192,8 @@
 		}
 
 		// Add remaining text after last code block
-		if (lastIndex < text.length) {
-			const remaining = text.slice(lastIndex);
+		if (lastIndex < remainingText.length) {
+			const remaining = remainingText.slice(lastIndex);
 			if (remaining.trim()) {
 				if (containsToolResult(remaining)) {
 					parts.push(...parseTextForToolResults(remaining));
@@ -148,16 +203,16 @@
 			}
 		}
 
-		// If no code blocks found, check for tool results in entire content
-		if (parts.length === 0 && text.trim()) {
-			if (containsToolResult(text)) {
-				parts.push(...parseTextForToolResults(text));
+		// If no code blocks found and no thinking, check for tool results in entire content
+		if (parts.length === thinkingParts.length && remainingText.trim()) {
+			if (containsToolResult(remainingText)) {
+				parts.push(...parseTextForToolResults(remainingText));
 			} else {
-				parts.push({ type: 'text', content: text });
+				parts.push({ type: 'text', content: remainingText });
 			}
 		}
 
-		return parts;
+		return { parts, isThinkingInProgress };
 	}
 
 	/**
@@ -219,7 +274,22 @@
 
 	// Clean and parse content into parts
 	const cleanedContent = $derived(cleanToolText(content));
-	const contentParts = $derived(parseContent(cleanedContent));
+	const parsedContent = $derived.by(() => {
+		const result = parseContent(cleanedContent);
+		// Debug: Log if thinking blocks were found
+		const thinkingParts = result.parts.filter(p => p.type === 'thinking');
+		if (thinkingParts.length > 0) {
+			console.log('[MessageContent] Found thinking blocks:', thinkingParts.length, 'in-progress:', result.isThinkingInProgress);
+		}
+		return result;
+	});
+	// Filter out thinking parts if showThinking is false
+	const contentParts = $derived(
+		showThinking
+			? parsedContent.parts
+			: parsedContent.parts.filter(p => p.type !== 'thinking')
+	);
+	const isThinkingInProgress = $derived(showThinking && parsedContent.isThinkingInProgress);
 </script>
 
 <div class="message-content">
@@ -255,7 +325,12 @@
 
 	<!-- Render content parts -->
 	{#each contentParts as part, index (index)}
-		{#if part.type === 'code'}
+		{#if part.type === 'thinking'}
+			<ThinkingBlock
+				content={part.content}
+				inProgress={isThinkingInProgress && index === 0}
+			/>
+		{:else if part.type === 'code'}
 			<div class="my-3 space-y-3">
 				<CodeBlock
 					code={part.content}

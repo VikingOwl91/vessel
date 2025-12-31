@@ -37,6 +37,8 @@ export interface StreamChatOptions {
 export interface StreamChatResult {
 	/** Full accumulated response text */
 	content: string;
+	/** Accumulated thinking/reasoning content (for reasoning models) */
+	thinking?: string;
 	/** Final response with metrics (if stream completed) */
 	response?: OllamaChatResponse;
 	/** Tool calls made by the model (if any) */
@@ -205,6 +207,7 @@ export async function* streamChat(
 	const parser = new NDJSONParser<OllamaChatStreamChunk>();
 
 	let accumulatedContent = '';
+	let accumulatedThinking = '';
 	let finalResponse: OllamaChatResponse | undefined;
 	let toolCalls: OllamaToolCall[] | undefined;
 
@@ -223,6 +226,9 @@ export async function* streamChat(
 					if (chunk.message?.content) {
 						accumulatedContent += chunk.message.content;
 					}
+					if (chunk.message?.thinking) {
+						accumulatedThinking += chunk.message.thinking;
+					}
 					if (chunk.message?.tool_calls) {
 						toolCalls = chunk.message.tool_calls;
 					}
@@ -238,6 +244,9 @@ export async function* streamChat(
 			for (const chunk of parser.parse(value)) {
 				if (chunk.message?.content) {
 					accumulatedContent += chunk.message.content;
+				}
+				if (chunk.message?.thinking) {
+					accumulatedThinking += chunk.message.thinking;
 				}
 				if (chunk.message?.tool_calls) {
 					toolCalls = chunk.message.tool_calls;
@@ -260,6 +269,7 @@ export async function* streamChat(
 
 	return {
 		content: accumulatedContent,
+		thinking: accumulatedThinking || undefined,
 		response: finalResponse,
 		toolCalls
 	};
@@ -273,6 +283,8 @@ export async function* streamChat(
 export interface StreamChatCallbacks {
 	/** Called for each content token */
 	onToken?: (token: string) => void;
+	/** Called for each thinking token (reasoning models with think: true) */
+	onThinkingToken?: (token: string) => void;
 	/** Called with full chunk data */
 	onChunk?: (chunk: OllamaChatStreamChunk) => void;
 	/** Called when tool calls are received from the model */
@@ -295,7 +307,7 @@ export async function streamChatWithCallbacks(
 	callbacks: StreamChatCallbacks,
 	options: StreamChatOptions
 ): Promise<StreamChatResult> {
-	const { onToken, onChunk, onToolCall, onComplete, onError } = callbacks;
+	const { onToken, onThinkingToken, onChunk, onToolCall, onComplete, onError } = callbacks;
 
 	try {
 		const stream = streamChat(request, options);
@@ -312,6 +324,11 @@ export async function streamChatWithCallbacks(
 
 			// Call chunk callback
 			onChunk?.(value);
+
+			// Call thinking token callback for reasoning content
+			if (value.message?.thinking) {
+				onThinkingToken?.(value.message.thinking);
+			}
 
 			// Call token callback for content
 			if (value.message?.content) {

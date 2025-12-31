@@ -4,7 +4,7 @@
 
 export { ChatState, chatState } from './chat.svelte.js';
 export { ConversationsState, conversationsState } from './conversations.svelte.js';
-export { ModelsState, modelsState } from './models.svelte.js';
+export { ModelsState, modelsState, CAPABILITY_INFO } from './models.svelte.js';
 export { UIState, uiState } from './ui.svelte.js';
 export { ToastState, toastState } from './toast.svelte.js';
 export { toolsState } from './tools.svelte.js';

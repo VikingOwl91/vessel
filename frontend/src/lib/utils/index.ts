@@ -30,3 +30,14 @@ export {
 	type Shortcut,
 	type Modifiers
 } from './keyboard.js';
+
+export {
+	detectFileType,
+	readTextFile,
+	processImage,
+	extractPdfText,
+	processFile,
+	formatFileSize,
+	getFileIcon,
+	formatAttachmentsForMessage
+} from './file-processor.js';

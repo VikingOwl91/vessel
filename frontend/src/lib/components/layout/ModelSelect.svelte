@@ -2,9 +2,10 @@
 	/**
 	 * ModelSelect.svelte - Dropdown for selecting Ollama models
 	 * Uses modelsState from $lib/stores
-	 * Shows vision capability indicator for compatible models
+	 * Shows capability icons for models (vision, tools, code, etc.)
 	 */
 	import { modelsState } from '$lib/stores';
+	import ModelCapabilityIcons from './ModelCapabilityIcons.svelte';
 
 	/** Track dropdown open state */
 	let isOpen = $state(false);
@@ -20,13 +21,6 @@
 		}
 		const mb = bytes / (1024 * 1024);
 		return `${mb.toFixed(0)} MB`;
-	}
-
-	/** Check if a model is vision-capable */
-	function isVisionCapable(modelName: string): boolean {
-		const model = modelsState.getByName(modelName);
-		if (!model) return false;
-		return modelsState.visionModels.some(v => v.name === modelName);
 	}
 
 	/** Handle model selection */
@@ -87,21 +81,8 @@
 				<div class="flex flex-col items-start">
 					<div class="flex items-center gap-1.5">
 						<span class="text-slate-200">{modelsState.selected.name}</span>
-						<!-- Vision indicator badge -->
-						{#if modelsState.selectedSupportsVision}
-							<span class="inline-flex items-center gap-0.5 rounded-full bg-purple-900/50 px-1.5 py-0.5 text-[10px] font-medium text-purple-300" title="Vision capable - supports image input">
-								<svg
-									xmlns="http://www.w3.org/2000/svg"
-									viewBox="0 0 16 16"
-									fill="currentColor"
-									class="h-2.5 w-2.5"
-								>
-									<path d="M8 9.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Z" />
-									<path fill-rule="evenodd" d="M1.38 8.28a.87.87 0 0 1 0-.566 7.003 7.003 0 0 1 13.238.006.87.87 0 0 1 0 .566A7.003 7.003 0 0 1 1.379 8.28ZM11 8a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" clip-rule="evenodd" />
-								</svg>
-								Vision
-							</span>
-						{/if}
+						<!-- Capability icons -->
+						<ModelCapabilityIcons modelName={modelsState.selected.name} />
 					</div>
 					<span class="text-xs text-slate-500">{modelsState.selected.details.parameter_size}</span>
 				</div>
@@ -166,20 +147,8 @@
 									<span class="text-sm" class:text-slate-200={modelsState.selectedId !== model.name}>
 										{model.name}
 									</span>
-									<!-- Vision indicator for models in dropdown -->
-									{#if isVisionCapable(model.name)}
-										<span class="inline-flex items-center rounded-full bg-purple-900/50 px-1 py-0.5 text-[9px] font-medium text-purple-300" title="Vision capable">
-											<svg
-												xmlns="http://www.w3.org/2000/svg"
-												viewBox="0 0 16 16"
-												fill="currentColor"
-												class="h-2 w-2"
-											>
-												<path d="M8 9.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Z" />
-												<path fill-rule="evenodd" d="M1.38 8.28a.87.87 0 0 1 0-.566 7.003 7.003 0 0 1 13.238.006.87.87 0 0 1 0 .566A7.003 7.003 0 0 1 1.379 8.28ZM11 8a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" clip-rule="evenodd" />
-											</svg>
-										</span>
-									{/if}
+									<!-- Capability icons for models in dropdown -->
+									<ModelCapabilityIcons modelName={model.name} compact />
 								</div>
 								<span class="text-xs text-slate-500">
 									{model.details.parameter_size}
