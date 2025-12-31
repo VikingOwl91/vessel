@@ -40,6 +40,15 @@
 	const hasContent = $derived(node.message.content.length > 0);
 	const hasToolCalls = $derived(node.message.toolCalls && node.message.toolCalls.length > 0);
 
+	// Detect tool result messages (sent as user role but should be hidden or styled differently)
+	const isToolResultMessage = $derived(
+		isUser && (
+			node.message.content.startsWith('Tool execution results:') ||
+			node.message.content.startsWith('Tool result:') ||
+			node.message.content.startsWith('Tool error:')
+		)
+	);
+
 	/**
 	 * Start editing a message
 	 */
@@ -80,6 +89,10 @@
 	}
 </script>
 
+<!-- Hide tool result messages - they're internal API messages -->
+{#if isToolResultMessage}
+	<!-- Tool results are handled in the assistant message display -->
+{:else}
 <article
 	class="group mb-6 flex gap-4"
 	class:justify-end={isUser}
@@ -218,3 +231,4 @@
 		</div>
 	{/if}
 </article>
+{/if}

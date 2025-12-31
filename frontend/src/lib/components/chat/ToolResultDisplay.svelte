@@ -11,7 +11,7 @@
 	let { content }: Props = $props();
 
 	interface ParsedResult {
-		type: 'location' | 'search' | 'error' | 'text' | 'json';
+		type: 'location' | 'search' | 'error' | 'text' | 'json' | 'fetch';
 		data: unknown;
 	}
 
@@ -40,35 +40,61 @@
 	}
 
 	/**
+	 * Try to extract JSON from text
+	 */
+	function extractJSON(text: string): unknown | null {
+		// Try to find JSON object in text
+		const jsonMatch = text.match(/\{[\s\S]*\}/);
+		if (jsonMatch) {
+			try {
+				return JSON.parse(jsonMatch[0]);
+			} catch {
+				return null;
+			}
+		}
+		return null;
+	}
+
+	/**
 	 * Parse the tool result content
 	 */
 	function parseResult(text: string): ParsedResult {
-		// Try to extract JSON from "Tool result: {...}" format
-		const jsonMatch = text.match(/Tool result:\s*(\{[\s\S]*\})/);
-		if (!jsonMatch) {
-			// Check for error
-			if (text.includes('Tool error:')) {
-				const errorMatch = text.match(/Tool error:\s*(.+)/);
-				return { type: 'error', data: errorMatch?.[1] || text };
-			}
-			return { type: 'text', data: text };
+		// Check for error first
+		if (text.includes('Tool error:') || text.includes('HTTP 403') || text.includes('HTTP 4') || text.includes('HTTP 5')) {
+			const errorMatch = text.match(/(?:Tool error:\s*)?(.+)/);
+			return { type: 'error', data: errorMatch?.[1]?.trim() || text };
 		}
 
-		try {
-			const data = JSON.parse(jsonMatch[1]);
+		// Try to extract JSON
+		const json = extractJSON(text);
+		if (json && typeof json === 'object') {
+			const data = json as Record<string, unknown>;
 
 			// Detect result type
-			if (data.location && (data.location.city || data.location.latitude)) {
+			if (data.location && typeof data.location === 'object') {
 				return { type: 'location', data };
 			}
 			if (data.results && Array.isArray(data.results) && data.query) {
 				return { type: 'search', data };
 			}
+			if (data.title || data.text || data.url) {
+				return { type: 'fetch', data };
+			}
 
 			return { type: 'json', data };
-		} catch {
-			return { type: 'text', data: text };
 		}
+
+		// Plain text result (might be scraped content)
+		const cleanText = text.replace(/^Tool result:\s*/i, '').trim();
+		if (cleanText.length > 0) {
+			// Check if it looks like HTML garbage
+			if (cleanText.includes('<script') || cleanText.includes('googletagmanager')) {
+				return { type: 'error', data: 'Could not extract meaningful content from page' };
+			}
+			return { type: 'text', data: cleanText };
+		}
+
+		return { type: 'text', data: text };
 	}
 
 	const parsed = $derived(parseResult(content));
@@ -139,6 +165,28 @@
 		</div>
 	</div>
 
+{:else if parsed.type === 'fetch'}
+	{@const data = parsed.data as Record<string, unknown>}
+	<div class="my-3 overflow-hidden rounded-xl border border-violet-500/30 bg-gradient-to-r from-violet-500/10 to-purple-500/10">
+		<div class="px-4 py-3">
+			<div class="flex items-center gap-2 text-sm">
+				<span>🌐</span>
+				{#if data.title}
+					<span class="font-medium text-slate-200">{data.title}</span>
+				{:else if data.url}
+					<a href={String(data.url)} target="_blank" rel="noopener noreferrer" class="text-violet-400 hover:underline">
+						{data.url}
+					</a>
+				{:else}
+					<span class="text-slate-400">Fetched content</span>
+				{/if}
+			</div>
+			{#if data.text && typeof data.text === 'string'}
+				<p class="mt-2 line-clamp-4 text-sm text-slate-400">{data.text.substring(0, 300)}{data.text.length > 300 ? '...' : ''}</p>
+			{/if}
+		</div>
+	</div>
+
 {:else if parsed.type === 'json'}
 	{@const data = parsed.data as Record<string, unknown>}
 	<div class="my-3 rounded-xl border border-slate-700/50 bg-slate-800/50 p-3">
@@ -146,6 +194,10 @@
 	</div>
 
 {:else}
-	<!-- Fallback: just show the text -->
-	<p class="text-slate-300">{parsed.data}</p>
+	<!-- Fallback: just show the text (if not empty/whitespace) -->
+	{#if typeof parsed.data === 'string' && parsed.data.trim().length > 0}
+		<div class="my-3 rounded-xl border border-slate-700/50 bg-slate-800/50 p-3">
+			<p class="text-sm text-slate-300">{parsed.data}</p>
+		</div>
+	{/if}
 {/if}

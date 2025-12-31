@@ -21,11 +21,15 @@
 	// Pattern to find fenced code blocks
 	const CODE_BLOCK_PATTERN = /```(\w+)?\n([\s\S]*?)```/g;
 
-	// Pattern to detect tool execution results
-	const TOOL_RESULT_PATTERN = /Tool execution results:\s*\n(Tool (?:result|error):[\s\S]*?)(?=\n\nBased on these results|$)/;
+	// Pattern to detect tool results in various formats
+	const TOOL_RESULT_PATTERN = /Tool result:\s*(\{[\s\S]*?\}|\S[\s\S]*?)(?=\n\n|$)/;
+	const TOOL_ERROR_PATTERN = /Tool error:\s*(.+?)(?=\n\n|$)/;
 
 	// Pattern for "Called tool:" text (redundant with ToolCallDisplay)
 	const CALLED_TOOL_PATTERN = /Called tool:\s*\w+\([^)]*\)\s*\n*/g;
+
+	// Pattern for "Tool execution results:" header
+	const TOOL_EXEC_HEADER_PATTERN = /Tool execution results:\s*\n?/g;
 
 	// Languages that should show a preview
 	const PREVIEW_LANGUAGES = ['html', 'htm'];
@@ -46,10 +50,14 @@
 	let modalImage = $state<string | null>(null);
 
 	/**
-	 * Clean redundant "Called tool:" text (shown via ToolCallDisplay)
+	 * Clean redundant tool text (shown via ToolCallDisplay)
 	 */
-	function cleanCalledToolText(text: string): string {
-		return text.replace(CALLED_TOOL_PATTERN, '').trim();
+	function cleanToolText(text: string): string {
+		return text
+			.replace(CALLED_TOOL_PATTERN, '')
+			.replace(TOOL_EXEC_HEADER_PATTERN, '')
+			.replace(/^Based on these results.*$/gm, '')
+			.trim();
 	}
 
 	/**
@@ -209,7 +217,7 @@
 	}
 
 	// Clean and parse content into parts
-	const cleanedContent = $derived(cleanCalledToolText(content));
+	const cleanedContent = $derived(cleanToolText(content));
 	const contentParts = $derived(parseContent(cleanedContent));
 </script>
 
