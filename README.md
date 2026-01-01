@@ -370,6 +370,9 @@ All requests to `/ollama/*` are proxied to the Ollama API, enabling CORS.
 
 Contributions are welcome! Please feel free to submit a Pull Request.
 
+> Issues and feature requests are tracked on GitHub:
+> https://github.com/VikingOwl91/vessel/issues
+
 1. Fork the repository
 2. Create your feature branch (`git checkout -b feature/amazing-feature`)
 3. Commit your changes (`git commit -m 'Add some amazing feature'`)
