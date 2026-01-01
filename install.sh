@@ -23,6 +23,7 @@ DEFAULT_MODEL="llama3.2"
 FRONTEND_PORT=7842
 BACKEND_PORT=9090
 OLLAMA_PORT=11434
+COMPOSE_CMD="docker compose"
 
 # Colors (disabled if not a terminal)
 if [[ -t 1 ]]; then
