@@ -67,14 +67,17 @@ export const handle: Handle = async ({ event, resolve }) => {
 		return proxyRequest(event.request, BACKEND_URL, '/health');
 	}
 
+	// Include query string for all API proxying
+	const fullPath = pathname + event.url.search;
+
 	// Proxy /api/v1/* to backend (must come before /api/* check)
 	if (pathname.startsWith('/api/v1/')) {
-		return proxyRequest(event.request, BACKEND_URL, pathname);
+		return proxyRequest(event.request, BACKEND_URL, fullPath);
 	}
 
 	// Proxy /api/* to Ollama
 	if (pathname.startsWith('/api/')) {
-		return proxyRequest(event.request, OLLAMA_URL, pathname);
+		return proxyRequest(event.request, OLLAMA_URL, fullPath);
 	}
 
 	// All other requests go to SvelteKit
