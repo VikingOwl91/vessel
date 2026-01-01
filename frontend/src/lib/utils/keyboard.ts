@@ -46,17 +46,25 @@ const isMac = (): boolean => {
 };
 
 /**
- * Check if the primary modifier is pressed (Cmd on Mac, Ctrl on others)
+ * Reset platform cache (for testing only)
+ * @internal
+ */
+export function _resetPlatformCache(): void {
+	_isMac = null;
+}
+
+/**
+ * Check if the primary modifier is pressed (Cmd on Mac, Alt on others)
  */
 export function isPrimaryModifier(event: KeyboardEvent): boolean {
-	return isMac() ? event.metaKey : event.ctrlKey;
+	return isMac() ? event.metaKey : event.altKey;
 }
 
 /**
  * Get the display string for the primary modifier
  */
 export function getPrimaryModifierDisplay(): string {
-	return isMac() ? '⌘' : 'Ctrl';
+	return isMac() ? '⌘' : 'Alt';
 }
 
 /**
@@ -198,10 +206,12 @@ class KeyboardShortcutsManager {
 export const keyboardShortcuts = new KeyboardShortcutsManager();
 
 /**
- * Get platform-aware primary modifier (Cmd on Mac, Ctrl on others)
+ * Get platform-aware primary modifier
+ * - Mac: Cmd (meta)
+ * - Windows/Linux: Alt (because Ctrl+N/K/etc are browser shortcuts that can't be overridden)
  */
 function getPrimaryModifiers(): Modifiers {
-	return isMac() ? { meta: true } : { ctrl: true };
+	return isMac() ? { meta: true } : { alt: true };
 }
 
 /**
