@@ -89,7 +89,12 @@ prompt_yes_no() {
         prompt="$prompt [y/N] "
     fi
 
-    read -r -p "$prompt" response
+    # Read from /dev/tty to work with curl | bash
+    if [[ -t 0 ]]; then
+        read -r -p "$prompt" response
+    else
+        read -r -p "$prompt" response < /dev/tty 2>/dev/null || response="$default"
+    fi
     response="${response:-$default}"
 
     [[ "$response" =~ ^[Yy]$ ]]
