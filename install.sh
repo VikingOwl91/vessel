@@ -231,12 +231,14 @@ services:
     profiles: ["disabled"]
 
   frontend:
+    depends_on: []
     environment:
       - OLLAMA_API_URL=http://host.docker.internal:11434
     extra_hosts:
       - "host.docker.internal:host-gateway"
 
   backend:
+    depends_on: []
     environment:
       - OLLAMA_URL=http://host.docker.internal:11434
     extra_hosts:
