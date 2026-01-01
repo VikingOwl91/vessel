@@ -26,6 +26,7 @@ export {
 	pinConversation,
 	archiveConversation,
 	updateMessageCount,
+	updateSystemPrompt,
 	searchConversations
 } from './conversations.js';
 
@@ -40,8 +41,10 @@ export {
 	getMessageTree,
 	getSiblings,
 	getPathToMessage,
-	appendToMessage
+	appendToMessage,
+	searchMessages
 } from './messages.js';
+export type { MessageSearchResult } from './messages.js';
 
 // Attachment operations
 export {

@@ -14,7 +14,7 @@
 	import Sidenav from '$lib/components/layout/Sidenav.svelte';
 	import TopNav from '$lib/components/layout/TopNav.svelte';
 	import ModelSelect from '$lib/components/layout/ModelSelect.svelte';
-	import { ToastContainer } from '$lib/components/shared';
+	import { ToastContainer, ShortcutsModal, SearchModal } from '$lib/components/shared';
 
 	import type { LayoutData } from './$types';
 	import type { Snippet } from 'svelte';
@@ -31,6 +31,9 @@
 
 	// Search modal state
 	let showSearchModal = $state(false);
+
+	// Shortcuts modal state
+	let showShortcutsModal = $state(false);
 
 	onMount(() => {
 		// Initialize UI state (handles responsive detection, theme, etc.)
@@ -82,20 +85,12 @@
 			}
 		});
 
-		// Search (Cmd/Ctrl + K)
+		// Search (Cmd/Ctrl + K) - opens global search modal
 		keyboardShortcuts.register({
 			...SHORTCUTS.SEARCH,
 			preventDefault: true,
 			handler: () => {
-				// Focus the search input in sidenav if open, otherwise open sidenav
-				if (!uiState.sidenavOpen) {
-					uiState.openSidenav();
-				}
-				// Focus search after a short delay to allow sidenav to open
-				setTimeout(() => {
-					const searchInput = document.querySelector('[data-search-input]') as HTMLInputElement;
-					searchInput?.focus();
-				}, 100);
+				showSearchModal = true;
 			}
 		});
 
@@ -105,6 +100,25 @@
 			preventDefault: true,
 			handler: () => {
 				uiState.toggleSidenav();
+			}
+		});
+
+		// Focus chat input (Cmd/Alt + /)
+		keyboardShortcuts.register({
+			...SHORTCUTS.FOCUS_INPUT,
+			preventDefault: true,
+			handler: () => {
+				const chatInput = document.querySelector('[data-chat-input]') as HTMLTextAreaElement;
+				chatInput?.focus();
+			}
+		});
+
+		// Show keyboard shortcuts (Shift + ?)
+		keyboardShortcuts.register({
+			...SHORTCUTS.SHOW_SHORTCUTS,
+			preventDefault: true,
+			handler: () => {
+				showShortcutsModal = !showShortcutsModal;
 			}
 		});
 	}
@@ -157,3 +171,9 @@
 
 <!-- Toast notifications -->
 <ToastContainer />
+
+<!-- Keyboard shortcuts help -->
+<ShortcutsModal isOpen={showShortcutsModal} onClose={() => (showShortcutsModal = false)} />
+
+<!-- Global search modal -->
+<SearchModal isOpen={showSearchModal} onClose={() => (showSearchModal = false)} />

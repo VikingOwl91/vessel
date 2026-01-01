@@ -26,8 +26,10 @@
 	import ChatInput from './ChatInput.svelte';
 	import EmptyState from './EmptyState.svelte';
 	import ContextUsageBar from './ContextUsageBar.svelte';
+	import ContextFullModal from './ContextFullModal.svelte';
 	import SummaryBanner from './SummaryBanner.svelte';
 	import StreamingStats from './StreamingStats.svelte';
+	import SystemPromptSelector from './SystemPromptSelector.svelte';
 	import ModelParametersPanel from '$lib/components/settings/ModelParametersPanel.svelte';
 	import { settingsState } from '$lib/stores/settings.svelte';
 
@@ -58,6 +60,10 @@
 	// Summarization state
 	let isSummarizing = $state(false);
 
+	// Context full modal state
+	let showContextFullModal = $state(false);
+	let pendingMessage: { content: string; images?: string[] } | null = $state(null);
+
 	// Tool execution state
 	let isExecutingTools = $state(false);
 
@@ -75,6 +81,35 @@
 	// Check for knowledge base on mount
 	$effect(() => {
 		checkKnowledgeBase();
+	});
+
+	// Track previous context state for threshold crossing detection
+	let previousContextState: 'normal' | 'warning' | 'critical' | 'full' = 'normal';
+
+	// Context warning toasts - show once per threshold crossing
+	$effect(() => {
+		const percentage = contextManager.contextUsage.percentage;
+		let currentState: 'normal' | 'warning' | 'critical' | 'full' = 'normal';
+
+		if (percentage >= 100) {
+			currentState = 'full';
+		} else if (percentage >= 95) {
+			currentState = 'critical';
+		} else if (percentage >= 85) {
+			currentState = 'warning';
+		}
+
+		// Only show toast when crossing INTO a worse state
+		if (currentState !== previousContextState) {
+			if (currentState === 'warning' && previousContextState === 'normal') {
+				toastState.warning('Context is 85% full. Consider starting a new chat soon.');
+			} else if (currentState === 'critical' && previousContextState !== 'full') {
+				toastState.warning('Context almost full (95%). Summarize or start a new chat.');
+			} else if (currentState === 'full') {
+				// Full state is handled by the modal, no toast needed
+			}
+			previousContextState = currentState;
+		}
 	});
 
 	/**
@@ -165,10 +200,10 @@
 
 	/**
 	 * Convert chat state messages to Ollama API format
-	 * Uses allMessages to include hidden tool result messages
+	 * Uses messagesForContext to exclude summarized originals but include summaries
 	 */
 	function getMessagesForApi(): OllamaMessage[] {
-		return chatState.allMessages.map((node) => ({
+		return chatState.messagesForContext.map((node) => ({
 			role: node.message.role as OllamaMessage['role'],
 			content: node.message.content,
 			images: node.message.images
@@ -186,6 +221,7 @@
 		const { toSummarize, toKeep } = selectMessagesForSummarization(messages, 0);
 
 		if (toSummarize.length === 0) {
+			toastState.warning('No messages available to summarize');
 			return;
 		}
 
@@ -194,24 +230,88 @@
 		try {
 			// Generate summary using the LLM
 			const summary = await generateSummary(toSummarize, selectedModel);
-			const formattedSummary = formatSummaryAsContext(summary);
 
-			// Calculate savings
-			const savedTokens = calculateTokenSavings(toSummarize, formattedSummary);
+			// Calculate savings for logging
+			const savedTokens = calculateTokenSavings(toSummarize, summary);
 
-			// TODO: Implement message replacement in chat state
-			// This requires adding a method to ChatState to replace messages
-			// with a summary node
+			// Mark original messages as summarized (they'll be hidden from UI and context)
+			const messageIdsToSummarize = toSummarize.map((node) => node.id);
+			chatState.markAsSummarized(messageIdsToSummarize);
 
+			// Insert the summary message at the beginning (after any system messages)
+			chatState.insertSummaryMessage(summary);
+
+			// Force context recalculation with updated message list
+			contextManager.updateMessages(chatState.visibleMessages, true);
+
+			// Show success notification
+			toastState.success(
+				`Summarized ${toSummarize.length} messages, saved ~${Math.round(savedTokens / 100) * 100} tokens`
+			);
 		} catch (error) {
 			console.error('Summarization failed:', error);
+			toastState.error('Summarization failed. Please try again.');
 		} finally {
 			isSummarizing = false;
 		}
 	}
 
+	// =========================================================================
+	// Context Full Modal Handlers
+	// =========================================================================
+
 	/**
-	 * Send a message and stream the response (with tool support)
+	 * Handle "Summarize & Continue" from context full modal
+	 */
+	async function handleContextFullSummarize(): Promise<void> {
+		showContextFullModal = false;
+		await handleSummarize();
+
+		// After summarization, try to send the pending message
+		if (pendingMessage && contextManager.contextUsage.percentage < 100) {
+			const { content, images } = pendingMessage;
+			pendingMessage = null;
+			await handleSendMessage(content, images);
+		} else if (pendingMessage) {
+			// Still full after summarization - show toast
+			toastState.warning('Context still full after summarization. Try starting a new chat.');
+			pendingMessage = null;
+		}
+	}
+
+	/**
+	 * Handle "Start New Chat" from context full modal
+	 */
+	function handleContextFullNewChat(): void {
+		showContextFullModal = false;
+		pendingMessage = null;
+		chatState.reset();
+		contextManager.reset();
+		toastState.info('Started new chat. Previous conversation was saved.');
+	}
+
+	/**
+	 * Handle "Continue Anyway" from context full modal
+	 */
+	async function handleContextFullDismiss(): Promise<void> {
+		showContextFullModal = false;
+
+		// Try to send the message anyway (may fail or get truncated)
+		if (pendingMessage) {
+			const { content, images } = pendingMessage;
+			pendingMessage = null;
+			// Bypass the context check by calling the inner logic directly
+			await sendMessageInternal(content, images);
+		}
+	}
+
+	/**
+	 * Check if summarization is possible (enough messages)
+	 */
+	const canSummarizeConversation = $derived(chatState.visibleMessages.length >= 6);
+
+	/**
+	 * Send a message - checks context and may show modal
 	 */
 	async function handleSendMessage(content: string, images?: string[]): Promise<void> {
 		const selectedModel = modelsState.selectedId;
@@ -220,6 +320,24 @@
 			toastState.error('Please select a model first');
 			return;
 		}
+
+		// Check if context is full (100%+)
+		if (contextManager.contextUsage.percentage >= 100) {
+			// Store pending message and show modal
+			pendingMessage = { content, images };
+			showContextFullModal = true;
+			return;
+		}
+
+		await sendMessageInternal(content, images);
+	}
+
+	/**
+	 * Internal: Send message and stream response (bypasses context check)
+	 */
+	async function sendMessageInternal(content: string, images?: string[]): Promise<void> {
+		const selectedModel = modelsState.selectedId;
+		if (!selectedModel) return;
 
 		// In 'new' mode with no messages yet, create conversation first
 		if (mode === 'new' && !hasMessages && onFirstMessage) {
@@ -289,11 +407,24 @@
 			// Build system prompt from active prompt + thinking + RAG context
 			const systemParts: string[] = [];
 
-			// Wait for prompts to be loaded, then add system prompt if active
+			// Wait for prompts to be loaded
 			await promptsState.ready();
-			const activePrompt = promptsState.activePrompt;
-			if (activePrompt) {
-				systemParts.push(activePrompt.content);
+
+			// Priority: per-conversation prompt > global active prompt > none
+			let promptContent: string | null = null;
+			if (conversation?.systemPromptId) {
+				// Use per-conversation prompt
+				const conversationPrompt = promptsState.get(conversation.systemPromptId);
+				if (conversationPrompt) {
+					promptContent = conversationPrompt.content;
+				}
+			} else if (promptsState.activePrompt) {
+				// Fall back to global active prompt
+				promptContent = promptsState.activePrompt.content;
+			}
+
+			if (promptContent) {
+				systemParts.push(promptContent);
 			}
 
 			// RAG: Retrieve relevant context for the last user message
@@ -703,26 +834,36 @@
 				<StreamingStats />
 			</div>
 
-			<!-- Chat options bar (settings toggle + thinking mode toggle) -->
+			<!-- Chat options bar (settings toggle + system prompt + thinking mode toggle) -->
 			<div class="flex items-center justify-between gap-3 px-4 pt-3">
-				<!-- Left side: Settings gear -->
-				<button
-					type="button"
-					onclick={() => settingsState.togglePanel()}
-					class="flex items-center gap-1.5 rounded px-2 py-1 text-xs text-slate-400 transition-colors hover:bg-slate-800 hover:text-slate-200"
-					class:bg-slate-800={settingsState.isPanelOpen}
-					class:text-sky-400={settingsState.isPanelOpen || settingsState.useCustomParameters}
-					aria-label="Toggle model parameters"
-					aria-expanded={settingsState.isPanelOpen}
-				>
-					<svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-					</svg>
-					{#if settingsState.useCustomParameters}
-						<span class="text-[10px]">Custom</span>
+				<!-- Left side: Settings gear + System prompt selector -->
+				<div class="flex items-center gap-2">
+					<button
+						type="button"
+						onclick={() => settingsState.togglePanel()}
+						class="flex items-center gap-1.5 rounded px-2 py-1 text-xs text-slate-400 transition-colors hover:bg-slate-800 hover:text-slate-200"
+						class:bg-slate-800={settingsState.isPanelOpen}
+						class:text-sky-400={settingsState.isPanelOpen || settingsState.useCustomParameters}
+						aria-label="Toggle model parameters"
+						aria-expanded={settingsState.isPanelOpen}
+					>
+						<svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+						</svg>
+						{#if settingsState.useCustomParameters}
+							<span class="text-[10px]">Custom</span>
+						{/if}
+					</button>
+
+					<!-- System prompt selector (only in conversation mode) -->
+					{#if mode === 'conversation' && conversation}
+						<SystemPromptSelector
+							conversationId={conversation.id}
+							currentPromptId={conversation.systemPromptId}
+						/>
 					{/if}
-				</button>
+				</div>
 
 				<!-- Right side: Thinking mode toggle -->
 				{#if supportsThinking}
@@ -762,3 +903,13 @@
 		</div>
 	</div>
 </div>
+
+<!-- Context full modal -->
+<ContextFullModal
+	isOpen={showContextFullModal}
+	onSummarize={handleContextFullSummarize}
+	onNewChat={handleContextFullNewChat}
+	onDismiss={handleContextFullDismiss}
+	{isSummarizing}
+	canSummarize={canSummarizeConversation}
+/>

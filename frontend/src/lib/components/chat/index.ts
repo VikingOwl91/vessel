@@ -30,3 +30,11 @@ export { default as CodeBlock } from './CodeBlock.svelte';
 // Indicators and states
 export { default as StreamingIndicator } from './StreamingIndicator.svelte';
 export { default as EmptyState } from './EmptyState.svelte';
+
+// Context management
+export { default as ContextUsageBar } from './ContextUsageBar.svelte';
+export { default as ContextFullModal } from './ContextFullModal.svelte';
+export { default as SummaryBanner } from './SummaryBanner.svelte';
+
+// Prompt selection
+export { default as SystemPromptSelector } from './SystemPromptSelector.svelte';

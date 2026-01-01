@@ -22,6 +22,8 @@
 		supportsVision?: boolean;
 		/** Whether upload is disabled */
 		disabled?: boolean;
+		/** Hide the drop zone (when drag overlay is handled by parent) */
+		hideDropZone?: boolean;
 	}
 
 	const {
@@ -30,7 +32,8 @@
 		attachments,
 		onAttachmentsChange,
 		supportsVision = false,
-		disabled = false
+		disabled = false,
+		hideDropZone = false
 	}: Props = $props();
 
 	// Processing state
@@ -112,7 +115,9 @@
 	}
 
 	/**
-	 * Handle paste events for file attachments
+	 * Handle paste events for file attachments and images
+	 * Images are forwarded to ImageUpload when vision is supported,
+	 * otherwise shows a helpful message
 	 */
 	function handlePaste(event: ClipboardEvent) {
 		if (disabled) return;
@@ -121,21 +126,100 @@
 		if (!items) return;
 
 		const files: File[] = [];
+		const imageFiles: File[] = [];
 
 		for (const item of items) {
-			// Handle non-image files (images handled by ImageUpload)
-			if (!item.type.startsWith('image/')) {
-				const file = item.getAsFile();
-				if (file) {
-					files.push(file);
-				}
+			const file = item.getAsFile();
+			if (!file) continue;
+
+			if (item.type.startsWith('image/')) {
+				imageFiles.push(file);
+			} else {
+				files.push(file);
 			}
 		}
 
+		// Handle non-image files
 		if (files.length > 0) {
-			// Don't prevent default if we have no files to process
-			// (let ImageUpload handle images)
 			processFiles(files);
+		}
+
+		// Handle image files
+		if (imageFiles.length > 0) {
+			event.preventDefault();
+
+			if (supportsVision) {
+				// Forward to ImageUpload by triggering file processing there
+				// ImageUpload has its own paste handler, but we handle it here too
+				// to ensure consistent behavior
+				processImageFiles(imageFiles);
+			} else {
+				// Show message that images require vision model
+				errorMessage = 'Images can only be used with vision-capable models (e.g., llava, bakllava)';
+				setTimeout(() => {
+					errorMessage = null;
+				}, 5000);
+			}
+		}
+	}
+
+	/**
+	 * Process image files and add to images array
+	 */
+	async function processImageFiles(files: File[]) {
+		// Import the processor dynamically to keep bundle small when not needed
+		const { processImageForOllama, isValidImageType, ImageProcessingError } = await import(
+			'$lib/ollama/image-processor'
+		);
+
+		const validFiles = files.filter(isValidImageType);
+		if (validFiles.length === 0) {
+			errorMessage = 'No valid image files. Supported: JPEG, PNG, GIF, WebP';
+			setTimeout(() => {
+				errorMessage = null;
+			}, 3000);
+			return;
+		}
+
+		// Limit to 4 images max
+		const maxImages = 4;
+		const remainingSlots = maxImages - images.length;
+		const filesToProcess = validFiles.slice(0, remainingSlots);
+
+		if (filesToProcess.length === 0) {
+			errorMessage = `Maximum ${maxImages} images allowed`;
+			setTimeout(() => {
+				errorMessage = null;
+			}, 3000);
+			return;
+		}
+
+		isProcessing = true;
+		errorMessage = null;
+
+		try {
+			const newImages: string[] = [];
+
+			for (const file of filesToProcess) {
+				try {
+					const processed = await processImageForOllama(file);
+					newImages.push(processed.base64);
+				} catch (err) {
+					if (err instanceof ImageProcessingError) {
+						console.error(`Failed to process ${file.name}:`, err.message);
+						errorMessage = err.message;
+					} else {
+						console.error(`Failed to process ${file.name}:`, err);
+						errorMessage = `Failed to process ${file.name}`;
+					}
+				}
+			}
+
+			if (newImages.length > 0) {
+				onImagesChange([...images, ...newImages]);
+			}
+		} finally {
+			isProcessing = false;
 		}
 	}
 
@@ -153,7 +237,7 @@
 <div class="space-y-3">
 	<!-- Image upload section (only for vision models) -->
 	{#if supportsVision}
-		<ImageUpload {images} {onImagesChange} {disabled} />
+		<ImageUpload {images} {onImagesChange} {disabled} {hideDropZone} />
 	{/if}
 
 	<!-- File attachments preview -->

@@ -20,7 +20,8 @@ function toDomainConversation(stored: StoredConversation): Conversation {
 		updatedAt: new Date(stored.updatedAt),
 		isPinned: stored.isPinned,
 		isArchived: stored.isArchived,
-		messageCount: stored.messageCount
+		messageCount: stored.messageCount,
+		systemPromptId: stored.systemPromptId ?? null
 	};
 }
 
@@ -42,7 +43,8 @@ function toStoredConversation(
 		updatedAt: conversation.updatedAt?.getTime() ?? now,
 		isPinned: conversation.isPinned,
 		isArchived: conversation.isArchived,
-		messageCount: conversation.messageCount
+		messageCount: conversation.messageCount,
+		systemPromptId: conversation.systemPromptId ?? null
 	};
 }
 
@@ -139,7 +141,8 @@ export async function createConversation(
 			isPinned: data.isPinned ?? false,
 			isArchived: data.isArchived ?? false,
 			messageCount: 0,
-			syncVersion: 1
+			syncVersion: 1,
+			systemPromptId: data.systemPromptId ?? null
 		};
 
 		await db.conversations.add(stored);
@@ -277,6 +280,16 @@ export async function updateMessageCount(
 			updatedAt: Date.now()
 		});
 	});
+}
+
+/**
+ * Update the system prompt for a conversation
+ */
+export async function updateSystemPrompt(
+	conversationId: string,
+	systemPromptId: string | null
+): Promise<StorageResult<Conversation>> {
+	return updateConversation(conversationId, { systemPromptId });
 }
 
 /**

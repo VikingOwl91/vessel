@@ -237,6 +237,18 @@ export function getShortcuts() {
 			modifiers: getPrimaryModifiers(),
 			description: 'Toggle sidebar'
 		},
+		FOCUS_INPUT: {
+			id: 'focus-input',
+			key: '/',
+			modifiers: getPrimaryModifiers(),
+			description: 'Focus chat input'
+		},
+		SHOW_SHORTCUTS: {
+			id: 'show-shortcuts',
+			key: '?',
+			modifiers: { shift: true },
+			description: 'Show keyboard shortcuts'
+		},
 		CLOSE_MODAL: {
 			id: 'close-modal',
 			key: 'Escape',

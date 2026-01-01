@@ -14,6 +14,8 @@ export interface Conversation {
 	isPinned: boolean;
 	isArchived: boolean;
 	messageCount: number;
+	/** Optional system prompt ID for this conversation (null = use global default) */
+	systemPromptId?: string | null;
 }
 
 /** Full conversation including message tree and navigation state */

@@ -195,6 +195,15 @@ export class ConversationsState {
 	clearSearch(): void {
 		this.searchQuery = '';
 	}
+
+	/**
+	 * Update the system prompt for a conversation
+	 * @param id The conversation ID
+	 * @param systemPromptId The prompt ID (or null to clear)
+	 */
+	setSystemPrompt(id: string, systemPromptId: string | null): void {
+		this.update(id, { systemPromptId });
+	}
 }
 
 /** Singleton conversations state instance */

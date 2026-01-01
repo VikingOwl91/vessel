@@ -40,8 +40,12 @@
 
 	const isUser = $derived(node.message.role === 'user');
 	const isAssistant = $derived(node.message.role === 'assistant');
+	const isSystem = $derived(node.message.role === 'system');
 	const hasContent = $derived(node.message.content.length > 0);
 	const hasToolCalls = $derived(node.message.toolCalls && node.message.toolCalls.length > 0);
+
+	// Detect summary messages (compressed conversation history)
+	const isSummaryMessage = $derived(node.message.isSummary === true);
 
 	// Detect tool result messages (sent as user role but should be hidden or styled differently)
 	const isToolResultMessage = $derived(
@@ -104,6 +108,34 @@
 <!-- Hide tool result messages - they're internal API messages -->
 {#if isToolResultMessage}
 	<!-- Tool results are handled in the assistant message display -->
+{:else if isSummaryMessage}
+	<!-- Summary message - special compact styling -->
+	<article
+		class="mb-4 rounded-xl border border-amber-500/20 bg-amber-500/5 p-4"
+		aria-label="Conversation summary"
+	>
+		<div class="flex items-start gap-3">
+			<!-- Archive/compress icon -->
+			<div class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-amber-500/10 text-amber-500">
+				<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="h-4 w-4">
+					<path d="M3.75 3A1.75 1.75 0 002 4.75v3.26a3.235 3.235 0 011.75-.51h12.5c.644 0 1.245.188 1.75.51V6.75A1.75 1.75 0 0016.25 5h-4.836a.25.25 0 01-.177-.073L9.823 3.513A1.75 1.75 0 008.586 3H3.75zM3.75 9A1.75 1.75 0 002 10.75v4.5c0 .966.784 1.75 1.75 1.75h12.5A1.75 1.75 0 0018 15.25v-4.5A1.75 1.75 0 0016.25 9H3.75z" />
+				</svg>
+			</div>
+			<div class="min-w-0 flex-1">
+				<div class="mb-1 flex items-center gap-2">
+					<span class="text-xs font-medium text-amber-400">Conversation Summary</span>
+					<span class="text-xs text-slate-500">Earlier messages compressed</span>
+				</div>
+				<div class="prose prose-sm prose-invert max-w-none text-slate-300">
+					<MessageContent
+						content={node.message.content.replace('[Previous conversation summary]\n\n', '')}
+						{isStreaming}
+						{showThinking}
+					/>
+				</div>
+			</div>
+		</div>
+	</article>
 {:else}
 <article
 	class="group mb-6 flex gap-4"

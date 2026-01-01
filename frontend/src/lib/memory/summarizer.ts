@@ -22,8 +22,11 @@ Keep the summary brief but complete. Write in third person.
 Conversation:
 `;
 
-/** Minimum messages to consider for summarization */
-const MIN_MESSAGES_FOR_SUMMARY = 6;
+/** Minimum messages required in the toSummarize array (after filtering) */
+const MIN_MESSAGES_TO_SUMMARIZE = 2;
+
+/** Minimum total messages before showing summarization option */
+const MIN_TOTAL_MESSAGES_FOR_SUMMARY = 6;
 
 /** How many recent messages to always preserve */
 const PRESERVE_RECENT_MESSAGES = 4;
@@ -54,7 +57,7 @@ export async function generateSummary(
 	messages: MessageNode[],
 	model: string
 ): Promise<string> {
-	if (messages.length < MIN_MESSAGES_FOR_SUMMARY) {
+	if (messages.length < MIN_MESSAGES_TO_SUMMARIZE) {
 		throw new Error('Not enough messages to summarize');
 	}
 
@@ -151,8 +154,15 @@ export function shouldSummarize(
 	maxTokens: number,
 	messageCount: number
 ): boolean {
-	// Don't summarize if too few messages
-	if (messageCount < MIN_MESSAGES_FOR_SUMMARY) {
+	// Don't show summarization if not enough total messages
+	if (messageCount < MIN_TOTAL_MESSAGES_FOR_SUMMARY) {
+		return false;
+	}
+
+	// Check if there would actually be messages to summarize after filtering
+	// (messageCount - PRESERVE_RECENT_MESSAGES = messages available for summarization)
+	const summarizableCount = messageCount - PRESERVE_RECENT_MESSAGES;
+	if (summarizableCount < MIN_MESSAGES_TO_SUMMARIZE) {
 		return false;
 	}
 

@@ -1,7 +1,8 @@
 <script lang="ts">
 	/**
-	 * ImageUpload - Drag and drop image upload with clipboard support
+	 * ImageUpload - Drag and drop image upload for vision models
 	 * Supports multiple images, shows thumbnails, and handles removal
+	 * Note: Clipboard paste is handled by FileUpload for consistent behavior
 	 */
 
 	import { processImageForOllama, isValidImageType, ImageProcessingError } from '$lib/ollama/image-processor';
@@ -16,13 +17,16 @@
 		disabled?: boolean;
 		/** Maximum number of images allowed */
 		maxImages?: number;
+		/** Hide the drop zone (when drag is handled by parent) */
+		hideDropZone?: boolean;
 	}
 
 	const {
 		images,
 		onImagesChange,
 		disabled = false,
-		maxImages = 4
+		maxImages = 4,
+		hideDropZone = false
 	}: Props = $props();
 
 	/** Drag over state for visual feedback */
@@ -145,32 +149,6 @@
 	}
 
 	/**
-	 * Handle paste from clipboard
-	 */
-	function handlePaste(event: ClipboardEvent): void {
-		if (disabled) return;
-
-		const items = event.clipboardData?.items;
-		if (!items) return;
-
-		const imageFiles: File[] = [];
-
-		for (const item of items) {
-			if (item.type.startsWith('image/')) {
-				const file = item.getAsFile();
-				if (file) {
-					imageFiles.push(file);
-				}
-			}
-		}
-
-		if (imageFiles.length > 0) {
-			event.preventDefault();
-			handleFiles(imageFiles);
-		}
-	}
-
-	/**
 	 * Remove an image at the given index
 	 */
 	function removeImage(index: number): void {
@@ -188,17 +166,24 @@
 		}
 	}
 
-	// Set up paste listener
-	$effect(() => {
-		if (!disabled) {
-			document.addEventListener('paste', handlePaste);
-			return () => {
-				document.removeEventListener('paste', handlePaste);
-			};
-		}
-	});
+	// Note: Paste handling is done in FileUpload.svelte to ensure
+	// consistent behavior whether or not this component is rendered
 </script>
 
+<!-- Only show image previews when hideDropZone is true (parent handles drag) -->
+{#if hideDropZone}
+	{#if images.length > 0}
+		<div class="flex flex-wrap gap-2">
+			{#each images as image, index (index)}
+				<ImagePreview
+					src={image}
+					onRemove={() => removeImage(index)}
+					alt={`Uploaded image ${index + 1}`}
+				/>
+			{/each}
+		</div>
+	{/if}
+{:else}
 <div class="space-y-3">
 	<!-- Image previews -->
 	{#if images.length > 0}
@@ -287,7 +272,7 @@
 					{#if isDragOver}
 						Drop images here
 					{:else}
-						Drag & drop, click, or paste images
+						Drag & drop or click to add images
 					{/if}
 				</p>
 
@@ -308,3 +293,4 @@
 		</div>
 	{/if}
 </div>
+{/if}

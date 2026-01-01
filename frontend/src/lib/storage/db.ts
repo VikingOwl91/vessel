@@ -19,6 +19,8 @@ export interface StoredConversation {
 	isArchived: boolean;
 	messageCount: number;
 	syncVersion?: number;
+	/** Optional system prompt ID for this conversation */
+	systemPromptId?: string | null;
 }
 
 /**
@@ -34,6 +36,8 @@ export interface ConversationRecord {
 	isArchived: boolean;
 	messageCount: number;
 	syncVersion?: number;
+	/** Optional system prompt ID for this conversation */
+	systemPromptId?: string | null;
 }
 
 /**
@@ -184,6 +188,19 @@ class OllamaDatabase extends Dexie {
 			documents: 'id, name, createdAt, updatedAt',
 			chunks: 'id, documentId',
 			// System prompt templates
+			prompts: 'id, name, isDefault, updatedAt'
+		});
+
+		// Version 4: Per-conversation system prompts
+		// Note: No schema change needed - just adding optional field to conversations
+		// Dexie handles this gracefully (field is undefined on old records)
+		this.version(4).stores({
+			conversations: 'id, updatedAt, isPinned, isArchived, systemPromptId',
+			messages: 'id, conversationId, parentId, createdAt',
+			attachments: 'id, messageId',
+			syncQueue: 'id, entityType, createdAt',
+			documents: 'id, name, createdAt, updatedAt',
+			chunks: 'id, documentId',
 			prompts: 'id, name, isDefault, updatedAt'
 		});
 	}

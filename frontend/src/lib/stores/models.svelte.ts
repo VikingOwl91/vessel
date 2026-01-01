@@ -9,7 +9,7 @@ import { ollamaClient } from '$lib/ollama/client.js';
 import { fetchRemoteModels, type RemoteModel } from '$lib/api/model-registry';
 
 /** Known vision model families/patterns (fallback if API doesn't report) */
-const VISION_PATTERNS = ['llava', 'bakllava', 'moondream', 'vision'];
+const VISION_PATTERNS = ['llava', 'bakllava', 'moondream', 'vision', 'ministral', 'pixtral', 'minicpm-v'];
 
 /** Capability display metadata */
 export const CAPABILITY_INFO: Record<string, { label: string; icon: string; color: string }> = {
@@ -128,8 +128,15 @@ export class ModelsState {
 	});
 
 	// Derived: Check if selected model supports vision
+	// Uses capabilities cache first (from Ollama API), falls back to pattern matching
 	selectedSupportsVision = $derived.by(() => {
 		if (!this.selected) return false;
+		// Check capabilities cache first (most accurate)
+		const caps = this.capabilitiesCache.get(this.selected.name);
+		if (caps) {
+			return caps.includes('vision');
+		}
+		// Fallback to pattern matching
 		return isVisionModel(this.selected);
 	});
 

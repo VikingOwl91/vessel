@@ -23,25 +23,38 @@ export class ChatState {
 	streamingMessageId = $state<string | null>(null);
 	streamBuffer = $state('');
 
-	// Derived: Get visible messages along the active path (excluding hidden messages for UI)
+	// Derived: Get visible messages along the active path (excluding hidden and summarized messages for UI)
 	visibleMessages = $derived.by(() => {
 		const messages: MessageNode[] = [];
 		for (const id of this.activePath) {
 			const node = this.messageTree.get(id);
-			// Skip hidden messages (e.g., internal tool result context)
-			if (node && !node.message.hidden) {
+			// Skip hidden messages and summarized messages (but show summary messages)
+			if (node && !node.message.hidden && !node.message.isSummarized) {
 				messages.push(node);
 			}
 		}
 		return messages;
 	});
 
-	// Derived: Get ALL messages along active path (including hidden, for API calls)
+	// Derived: Get ALL messages along active path (including hidden, for storage)
 	allMessages = $derived.by(() => {
 		const messages: MessageNode[] = [];
 		for (const id of this.activePath) {
 			const node = this.messageTree.get(id);
 			if (node) {
+				messages.push(node);
+			}
+		}
+		return messages;
+	});
+
+	// Derived: Get messages for API context (excludes summarized originals, includes summaries)
+	messagesForContext = $derived.by(() => {
+		const messages: MessageNode[] = [];
+		for (const id of this.activePath) {
+			const node = this.messageTree.get(id);
+			// Exclude summarized messages but include summary messages and hidden tool results
+			if (node && !node.message.isSummarized) {
 				messages.push(node);
 			}
 		}
@@ -362,6 +375,126 @@ export class ChatState {
 	 */
 	getLeafNodes(): MessageNode[] {
 		return Array.from(this.messageTree.values()).filter((node) => node.childIds.length === 0);
+	}
+
+	/**
+	 * Mark messages as summarized (they'll be hidden from UI and context)
+	 * @param messageIds Array of message IDs to mark as summarized
+	 */
+	markAsSummarized(messageIds: string[]): void {
+		const newTree = new Map(this.messageTree);
+
+		for (const id of messageIds) {
+			const node = newTree.get(id);
+			if (node) {
+				newTree.set(id, {
+					...node,
+					message: {
+						...node.message,
+						isSummarized: true
+					}
+				});
+			}
+		}
+
+		this.messageTree = newTree;
+	}
+
+	/**
+	 * Insert a summary message at the beginning of the conversation (after system message if present)
+	 * @param summaryText The summary content
+	 * @returns The ID of the inserted summary message
+	 */
+	insertSummaryMessage(summaryText: string): string {
+		const id = generateId();
+
+		// Find the first non-system message position in the active path
+		let insertIndex = 0;
+		for (let i = 0; i < this.activePath.length; i++) {
+			const node = this.messageTree.get(this.activePath[i]);
+			if (node?.message.role !== 'system') {
+				insertIndex = i;
+				break;
+			}
+			insertIndex = i + 1;
+		}
+
+		// Determine parent: either the last system message or null
+		const parentId = insertIndex > 0 ? this.activePath[insertIndex - 1] : null;
+
+		// Find the original first non-summarized message to connect to
+		let nextMessageId: string | null = null;
+		for (let i = insertIndex; i < this.activePath.length; i++) {
+			const node = this.messageTree.get(this.activePath[i]);
+			if (node && !node.message.isSummarized) {
+				nextMessageId = this.activePath[i];
+				break;
+			}
+		}
+
+		// Create the summary node
+		const summaryNode: MessageNode = {
+			id,
+			message: {
+				role: 'system',
+				content: `[Previous conversation summary]\n\n${summaryText}`,
+				isSummary: true
+			},
+			parentId,
+			childIds: nextMessageId ? [nextMessageId] : [],
+			createdAt: new Date()
+		};
+
+		const newTree = new Map(this.messageTree);
+
+		// Update parent to point to summary instead of original child
+		if (parentId) {
+			const parent = newTree.get(parentId);
+			if (parent && nextMessageId) {
+				newTree.set(parentId, {
+					...parent,
+					childIds: parent.childIds.map((cid) => (cid === nextMessageId ? id : cid))
+				});
+			} else if (parent) {
+				newTree.set(parentId, {
+					...parent,
+					childIds: [...parent.childIds, id]
+				});
+			}
+		}
+
+		// Update next message's parent to point to summary
+		if (nextMessageId) {
+			const nextNode = newTree.get(nextMessageId);
+			if (nextNode) {
+				newTree.set(nextMessageId, {
+					...nextNode,
+					parentId: id
+				});
+			}
+		}
+
+		// Add summary node
+		newTree.set(id, summaryNode);
+		this.messageTree = newTree;
+
+		// Update root if summary is at the beginning
+		if (!parentId) {
+			this.rootMessageId = id;
+		}
+
+		// Rebuild active path to include summary
+		const newPath: string[] = [];
+		for (let i = 0; i < insertIndex; i++) {
+			newPath.push(this.activePath[i]);
+		}
+		newPath.push(id);
+		for (let i = insertIndex; i < this.activePath.length; i++) {
+			newPath.push(this.activePath[i]);
+		}
+		this.activePath = newPath;
+
+		return id;
 	}
 
 	/**

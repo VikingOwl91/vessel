@@ -24,6 +24,10 @@ export interface Message {
 	toolCalls?: ToolCall[];
 	/** If true, message is hidden from UI (e.g., internal tool result messages) */
 	hidden?: boolean;
+	/** If true, this message has been summarized and should be excluded from context */
+	isSummarized?: boolean;
+	/** If true, this is a summary message representing compressed conversation history */
+	isSummary?: boolean;
 }
 
 /** A node in the message tree structure (for branching conversations) */

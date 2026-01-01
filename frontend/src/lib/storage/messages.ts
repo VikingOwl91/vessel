@@ -387,3 +387,68 @@ export async function appendToMessage(
 		});
 	});
 }
+
+/** Search result for message content search */
+export interface MessageSearchResult {
+	messageId: string;
+	conversationId: string;
+	role: 'user' | 'assistant' | 'system' | 'tool';
+	content: string;
+	matchIndex: number;
+	createdAt: Date;
+}
+
+/**
+ * Search messages by content
+ * Returns matching messages with context snippets
+ */
+export async function searchMessages(
+	query: string,
+	options?: {
+		conversationId?: string;
+		limit?: number;
+	}
+): Promise<StorageResult<MessageSearchResult[]>> {
+	return withErrorHandling(async () => {
+		if (!query.trim()) {
+			return [];
+		}
+
+		const lowerQuery = query.toLowerCase().trim();
+		const limit = options?.limit ?? 50;
+
+		// Get messages (optionally filtered by conversation)
+		let messagesQuery = db.messages.orderBy('createdAt').reverse();
+
+		const allMessages = await messagesQuery.toArray();
+
+		// Filter by content match and optional conversation filter
+		const matches: MessageSearchResult[] = [];
+
+		for (const msg of allMessages) {
+			if (matches.length >= limit) break;
+
+			// Skip if filtering by conversation and doesn't match
+			if (options?.conversationId && msg.conversationId !== options.conversationId) {
+				continue;
+			}
+
+			// Check for content match
+			const lowerContent = msg.content.toLowerCase();
+			const matchIndex = lowerContent.indexOf(lowerQuery);
+
+			if (matchIndex !== -1) {
+				matches.push({
+					messageId: msg.id,
+					conversationId: msg.conversationId,
+					role: msg.role,
+					content: msg.content,
+					matchIndex,
+					createdAt: new Date(msg.createdAt)
+				});
+			}
+		}
+
+		return matches;
+	});
+}

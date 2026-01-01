@@ -25,7 +25,8 @@
 	let userScrolledAway = $state(false);
 
 	// Track previous streaming state to detect when streaming ends
-	let wasStreaming = $state(false);
+	// Note: Using plain variables (not $state) to avoid re-triggering effects
+	let wasStreaming = false;
 
 	// Threshold for "near bottom" detection
 	const SCROLL_THRESHOLD = 100;
@@ -51,25 +52,25 @@
 
 	/**
 	 * Scroll to bottom smoothly (for button click)
+	 * Note: userScrolledAway is updated naturally by handleScroll when we reach bottom
 	 */
 	function scrollToBottom(): void {
 		if (anchorElement) {
 			anchorElement.scrollIntoView({ behavior: 'smooth', block: 'end' });
-			userScrolledAway = false;
 		}
 	}
 
 	/**
 	 * Scroll to bottom instantly (for auto-scroll)
+	 * Note: userScrolledAway is updated naturally by handleScroll when we reach bottom
 	 */
 	function scrollToBottomInstant(): void {
 		if (anchorElement) {
 			anchorElement.scrollIntoView({ block: 'end' });
-			userScrolledAway = false;
 		}
 	}
 
-	// Auto-scroll when streaming starts (if user hasn't scrolled away)
+	// Auto-scroll when streaming state changes
 	$effect(() => {
 		const isStreaming = chatState.isStreaming;
 
@@ -95,8 +96,22 @@
 		wasStreaming = isStreaming;
 	});
 
+	// Continuous scroll during streaming as content grows
+	$effect(() => {
+		// Track stream buffer changes - when content grows during streaming, scroll
+		const buffer = chatState.streamBuffer;
+		const isStreaming = chatState.isStreaming;
+
+		if (isStreaming && buffer && !userScrolledAway) {
+			requestAnimationFrame(() => {
+				scrollToBottomInstant();
+			});
+		}
+	});
+
 	// Scroll when new messages are added (user sends a message)
-	let previousMessageCount = $state(0);
+	// Note: Using plain variable to avoid creating a dependency that re-triggers the effect
+	let previousMessageCount = 0;
 	$effect(() => {
 		const currentCount = chatState.visibleMessages.length;
 
