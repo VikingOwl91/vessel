@@ -65,13 +65,14 @@ func DefaultFetchOptions() FetchOptions {
 
 // Fetcher provides URL fetching with multiple backend support
 type Fetcher struct {
-	curlPath    string
-	wgetPath    string
-	chromePath  string
-	httpClient  *http.Client
-	method      FetchMethod
-	hasChrome   bool
-	mu          sync.RWMutex
+	curlPath      string
+	wgetPath      string
+	wgetIsBusyBox bool // BusyBox wget has limited options
+	chromePath    string
+	httpClient    *http.Client
+	method        FetchMethod
+	hasChrome     bool
+	mu            sync.RWMutex
 
 	// chromedp allocator context (reused for efficiency)
 	allocCtx    context.Context
@@ -114,6 +115,13 @@ func (f *Fetcher) detectTools() {
 	// Check for wget
 	if path, err := exec.LookPath("wget"); err == nil {
 		f.wgetPath = path
+		// Check if it's BusyBox wget (has limited options)
+		versionCmd := exec.Command(path, "--version")
+		versionOut, _ := versionCmd.CombinedOutput()
+		f.wgetIsBusyBox = strings.Contains(string(versionOut), "BusyBox")
+		if f.wgetIsBusyBox {
+			log.Printf("[Fetcher] Found BusyBox wget (limited options)")
+		}
 		if f.method == "" {
 			f.method = FetchMethodWget
 		}
@@ -483,19 +491,37 @@ func (f *Fetcher) fetchWithCurl(ctx context.Context, url string, curlPath string
 
 // fetchWithWget uses wget to fetch the URL
 func (f *Fetcher) fetchWithWget(ctx context.Context, url string, wgetPath string, opts FetchOptions) (*FetchResult, error) {
-	args := []string{
-		"-q",                           // Quiet
-		"-O", "-",                      // Output to stdout
-		"--timeout", fmt.Sprintf("%d", int(opts.Timeout.Seconds())),
-		"--user-agent", opts.UserAgent,
-		"--max-redirect", "10",         // Follow up to 10 redirects
-		"--header", "Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-		"--header", "Accept-Language: en-US,en;q=0.5",
-	}
+	f.mu.RLock()
+	isBusyBox := f.wgetIsBusyBox
+	f.mu.RUnlock()
 
-	// Add custom headers
-	for key, value := range opts.Headers {
-		args = append(args, "--header", fmt.Sprintf("%s: %s", key, value))
+	var args []string
+
+	if isBusyBox {
+		// BusyBox wget has limited options - use short flags only
+		args = []string{
+			"-q",           // Quiet
+			"-O", "-",      // Output to stdout
+			"-T", fmt.Sprintf("%d", int(opts.Timeout.Seconds())), // Timeout
+			"-U", opts.UserAgent, // User agent
+		}
+		// BusyBox wget doesn't support custom headers or max-redirect
+	} else {
+		// GNU wget supports full options
+		args = []string{
+			"-q",                           // Quiet
+			"-O", "-",                      // Output to stdout
+			"--timeout", fmt.Sprintf("%d", int(opts.Timeout.Seconds())),
+			"--user-agent", opts.UserAgent,
+			"--max-redirect", "10",         // Follow up to 10 redirects
+			"--header", "Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+			"--header", "Accept-Language: en-US,en;q=0.5",
+		}
+
+		// Add custom headers (GNU wget only)
+		for key, value := range opts.Headers {
+			args = append(args, "--header", fmt.Sprintf("%s: %s", key, value))
+		}
 	}
 
 	args = append(args, url)
