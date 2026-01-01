@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://ollama.com/public/ollama.png" alt="Vessel" width="120" height="120">
+  <img src="frontend/static/favicon.svg" alt="Vessel" width="120" height="120">
 </p>
 
 <h1 align="center">Vessel</h1>
