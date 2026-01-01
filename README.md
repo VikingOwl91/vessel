@@ -114,6 +114,32 @@ Vessel includes five powerful tools that models can invoke automatically:
 - [Docker](https://docs.docker.com/get-docker/) and Docker Compose
 - [Ollama](https://ollama.com/download) installed and running locally
 
+#### Ollama Configuration
+
+Ollama must listen on all interfaces for Docker containers to connect. Configure it by setting `OLLAMA_HOST=0.0.0.0`:
+
+**Option A: Using systemd (Linux, recommended)**
+```bash
+sudo systemctl edit ollama
+```
+
+Add these lines:
+```ini
+[Service]
+Environment="OLLAMA_HOST=0.0.0.0"
+```
+
+Then restart:
+```bash
+sudo systemctl daemon-reload
+sudo systemctl restart ollama
+```
+
+**Option B: Manual start**
+```bash
+OLLAMA_HOST=0.0.0.0 ollama serve
+```
+
 ### One-Line Install
 
 ```bash
