@@ -9,12 +9,12 @@
 </p>
 
 <p align="center">
+  <a href="#why-vessel">Why Vessel</a> •
   <a href="#features">Features</a> •
   <a href="#screenshots">Screenshots</a> •
   <a href="#quick-start">Quick Start</a> •
   <a href="#installation">Installation</a> •
-  <a href="#configuration">Configuration</a> •
-  <a href="#development">Development</a>
+  <a href="#roadmap">Roadmap</a>
 </p>
 
 <p align="center">
@@ -30,6 +30,30 @@
   <img src="https://img.shields.io/badge/license-GPL--3.0-blue?style=flat-square" alt="License GPL-3.0">
   <img src="https://img.shields.io/badge/PRs-welcome-brightgreen?style=flat-square" alt="PRs Welcome">
 </p>
+
+---
+
+## Why Vessel
+
+Vessel and [open-webui](https://github.com/open-webui/open-webui) solve different problems.
+
+**Vessel** is intentionally focused on:
+
+- A clean, local-first UI for **Ollama**
+- Minimal configuration
+- Low visual and cognitive overhead
+- Doing a small set of things well
+
+It exists for users who want a UI that is fast and uncluttered, makes browsing and managing Ollama models simple, and stays out of the way once set up.
+
+**open-webui** aims to be a feature-rich, extensible frontend supporting many runtimes, integrations, and workflows. That flexibility is powerful — but it comes with more complexity in setup, UI, and maintenance.
+
+### In short
+
+- If you want a **universal, highly configurable platform** → open-webui is a great choice
+- If you want a **small, focused UI for local Ollama usage** → Vessel is built for that
+
+Vessel deliberately avoids becoming a platform. Its scope is narrow by design.
 
 ---
 
@@ -357,12 +381,60 @@ All requests to `/ollama/*` are proxied to the Ollama API, enabling CORS.
 
 ## Roadmap
 
-- [ ] Docker Ollama support (for systems without local Ollama)
-- [ ] Image generation (Stable Diffusion, Hugging Face models)
+Vessel is intentionally focused on being a **clean, local-first UI for Ollama**.
+The roadmap prioritizes **usability, clarity, and low friction** over feature breadth.
+
+### Core UX Improvements (Near-term)
+
+These improve the existing experience without expanding scope.
+
+- [ ] Improve model browser & search
+  - better filtering (size, tags, quantization)
+  - clearer metadata presentation
+- [ ] Keyboard-first workflows
+  - model switching
+  - prompt navigation
+- [ ] UX polish & stability
+  - error handling
+  - loading / offline states
+  - small performance improvements
+
+### Local Ecosystem Quality-of-Life (Opt-in)
+
+Still local-first, still focused — but easing onboarding and workflows.
+
+- [ ] Docker-based Ollama support
+  *(for systems without native Ollama installs)*
+- [ ] Optional voice input/output
+  *(accessibility & convenience, not a core requirement)*
+- [ ] Presets for common workflows
+  *(model + tool combinations, kept simple)*
+
+### Experimental / Explicitly Optional
+
+These are **explorations**, not promises. They are intentionally separated to avoid scope creep.
+
+- [ ] Image generation support
+  *(only if it can be cleanly isolated from the core UI)*
 - [ ] Hugging Face integration
-- [ ] Voice input/output
-- [ ] Multi-user support
-- [ ] Plugin system
+  *(evaluated carefully to avoid bloating the local-first experience)*
+
+### Non-Goals (By Design)
+
+Vessel intentionally avoids becoming a platform.
+
+- Multi-user / account-based systems
+- Cloud sync or hosted services
+- Large plugin ecosystems
+- "Universal" support for every LLM runtime
+
+If a feature meaningfully compromises simplicity, it likely doesn't belong in core Vessel.
+
+### Philosophy
+
+> Do one thing well.
+> Keep the UI out of the way.
+> Prefer clarity over configurability.
 
 ---
 
