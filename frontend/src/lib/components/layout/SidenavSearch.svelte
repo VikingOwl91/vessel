@@ -42,7 +42,7 @@
 			oninput={handleInput}
 			placeholder="Search conversations..."
 			data-search-input
-			class="w-full rounded-lg border border-theme bg-theme-secondary/50 py-2 pl-10 pr-9 text-sm text-theme-secondary placeholder-theme-muted transition-colors focus:border-emerald-500/50 focus:bg-theme-secondary focus:outline-none focus:ring-1 focus:ring-emerald-500/50"
+			class="w-full rounded-lg border border-theme-subtle bg-theme-tertiary/50 py-2 pl-10 pr-9 text-sm text-theme-primary placeholder-theme-placeholder transition-colors focus:border-violet-500/50 focus:bg-theme-tertiary focus:outline-none focus:ring-1 focus:ring-violet-500/50"
 		/>
 
 		<!-- Clear button (visible when there's text) -->
