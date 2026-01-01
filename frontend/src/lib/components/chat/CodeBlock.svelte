@@ -209,10 +209,10 @@
 	});
 </script>
 
-<div class="group relative overflow-hidden rounded-xl border border-theme/50" style="contain: layout;">
+<div class="group relative overflow-hidden rounded-xl border border-slate-700/50" style="contain: layout;">
 	<!-- Header with language label, run button, and copy button -->
 	<div
-		class="flex items-center justify-between border-b border-theme/50 bg-theme-secondary/80 px-3 py-1.5 text-xs text-theme-muted"
+		class="flex items-center justify-between border-b border-slate-700/50 bg-slate-800 px-3 py-1.5 text-xs text-slate-400"
 	>
 		<span class="font-mono uppercase">{language}</span>
 		<div class="flex items-center gap-2">
@@ -283,9 +283,9 @@
 	</div>
 
 	<!-- Code content - use same styling for loading/loaded to prevent layout shift -->
-	<div class="code-block-content overflow-x-auto bg-theme-primary/90">
+	<div class="code-block-content overflow-x-auto bg-[#0d1117]">
 		{#if isLoading}
-			<pre class="m-0 overflow-x-auto bg-transparent px-4 py-3" style="line-height: 1.5;"><code class="font-mono text-[13px] text-theme-secondary" style="line-height: inherit;">{code}</code></pre>
+			<pre class="m-0 overflow-x-auto bg-transparent px-4 py-3" style="line-height: 1.5;"><code class="font-mono text-[13px] text-slate-300" style="line-height: inherit;">{code}</code></pre>
 		{:else}
 			{@html highlightedHtml}
 		{/if}
@@ -293,15 +293,15 @@
 
 	<!-- Execution output -->
 	{#if showOutput && (isExecuting || executionResult)}
-		<div class="border-t border-theme/50 bg-theme-primary/50">
+		<div class="border-t border-slate-700/50 bg-slate-800/80">
 			<!-- Output header -->
 			<div class="flex items-center justify-between px-3 py-2">
 				<div class="flex items-center gap-2">
 					<!-- Terminal icon -->
-					<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="h-4 w-4 text-theme-muted">
+					<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="h-4 w-4 text-slate-400">
 						<path fill-rule="evenodd" d="M3.25 3A2.25 2.25 0 001 5.25v9.5A2.25 2.25 0 003.25 17h13.5A2.25 2.25 0 0019 14.75v-9.5A2.25 2.25 0 0016.75 3H3.25zm.943 8.752a.75.75 0 01.055-1.06L6.128 9l-1.88-1.693a.75.75 0 111.004-1.114l2.5 2.25a.75.75 0 010 1.114l-2.5 2.25a.75.75 0 01-1.06-.055zM9.75 10.25a.75.75 0 000 1.5h2.5a.75.75 0 000-1.5h-2.5z" clip-rule="evenodd" />
 					</svg>
-					<span class="text-xs font-medium text-theme-muted">Output</span>
+					<span class="text-xs font-medium text-slate-400">Output</span>
 
 					{#if isExecuting}
 						<span class="flex items-center gap-1.5 rounded-full bg-blue-500/10 px-2 py-0.5 text-[11px] text-blue-400">
@@ -313,7 +313,7 @@
 						</span>
 					{:else if executionResult}
 						{#if executionResult.status === 'success'}
-							<span class="text-[11px] text-theme-muted">Completed</span>
+							<span class="text-[11px] text-slate-500">Completed</span>
 						{:else}
 							<span class="flex items-center gap-1 rounded-full bg-red-500/10 px-2 py-0.5 text-[11px] text-red-400">
 								<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="h-3 w-3">
@@ -322,13 +322,13 @@
 								Error
 							</span>
 						{/if}
-						<span class="text-[11px] text-theme-muted">{executionResult.duration}ms</span>
+						<span class="text-[11px] text-slate-500">{executionResult.duration}ms</span>
 					{/if}
 				</div>
 				<button
 					type="button"
 					onclick={clearOutput}
-					class="rounded-md px-2 py-1 text-[11px] text-theme-muted transition-colors hover:bg-theme-secondary hover:text-theme-secondary"
+					class="rounded-md px-2 py-1 text-[11px] text-slate-500 transition-colors hover:bg-slate-700 hover:text-slate-300"
 					aria-label="Clear output"
 				>
 					Clear
@@ -336,11 +336,11 @@
 			</div>
 
 			<!-- Output content -->
-			<div class="max-h-48 overflow-auto border-t border-theme/50 bg-theme-primary/30 px-3 py-2">
+			<div class="max-h-48 overflow-auto border-t border-slate-700/50 bg-[#0d1117] px-3 py-2">
 				{#if executionResult?.outputs.length}
 					<pre class="font-mono text-[12px] leading-relaxed">{#each executionResult.outputs as output}<span class={getOutputClass(output.type)}>{output.content}</span>{/each}</pre>
 				{:else if !isExecuting}
-					<p class="text-[12px] italic text-theme-muted">No output</p>
+					<p class="text-[12px] italic text-slate-500">No output</p>
 				{/if}
 			</div>
 		</div>

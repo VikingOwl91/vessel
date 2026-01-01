@@ -29,6 +29,10 @@
 	// Supports both <thinking>...</thinking> and <think>...</think> (qwen3 format)
 	const THINKING_PATTERN = /<(?:thinking|think)>([\s\S]*?)<\/(?:thinking|think)>/g;
 
+	// Pattern to detect JSON tool call objects (for models that output them as text)
+	// Matches: {"name": "...", "arguments": {...}}
+	const JSON_TOOL_CALL_PATTERN = /^(\s*\{[\s\S]*"name"\s*:\s*"[^"]+"\s*,\s*"arguments"\s*:\s*\{[\s\S]*\}\s*\}\s*)$/;
+
 	// Pattern to detect tool results in various formats
 	const TOOL_RESULT_PATTERN = /Tool result:\s*(\{[\s\S]*?\}|\S[\s\S]*?)(?=\n\n|$)/;
 	const TOOL_ERROR_PATTERN = /Tool error:\s*(.+?)(?=\n\n|$)/;
@@ -73,6 +77,24 @@
 	 */
 	function containsToolResult(text: string): boolean {
 		return text.includes('Tool execution results:') || text.includes('Tool result:') || text.includes('Tool error:');
+	}
+
+	/**
+	 * Check if text is a JSON tool call (for models that output them as text)
+	 */
+	function isJsonToolCall(text: string): boolean {
+		const trimmed = text.trim();
+		if (!trimmed.startsWith('{')) return false;
+		try {
+			const parsed = JSON.parse(trimmed);
+			return typeof parsed === 'object' &&
+				'name' in parsed &&
+				'arguments' in parsed &&
+				typeof parsed.name === 'string' &&
+				typeof parsed.arguments === 'object';
+		} catch {
+			return false;
+		}
 	}
 
 	/**
@@ -167,12 +189,20 @@
 		// Find all code blocks
 		let match;
 		while ((match = CODE_BLOCK_PATTERN.exec(remainingText)) !== null) {
-			// Add text before this code block (may contain tool results)
+			// Add text before this code block (may contain tool results or JSON tool calls)
 			if (match.index > lastIndex) {
 				const textBefore = remainingText.slice(lastIndex, match.index);
 				if (textBefore.trim()) {
 					if (containsToolResult(textBefore)) {
 						parts.push(...parseTextForToolResults(textBefore));
+					} else if (isJsonToolCall(textBefore)) {
+						// Render JSON tool calls as code blocks
+						try {
+							const formatted = JSON.stringify(JSON.parse(textBefore.trim()), null, 2);
+							parts.push({ type: 'code', content: formatted, language: 'json' });
+						} catch {
+							parts.push({ type: 'text', content: textBefore });
+						}
 					} else {
 						parts.push({ type: 'text', content: textBefore });
 					}
@@ -197,6 +227,14 @@
 			if (remaining.trim()) {
 				if (containsToolResult(remaining)) {
 					parts.push(...parseTextForToolResults(remaining));
+				} else if (isJsonToolCall(remaining)) {
+					// Render JSON tool calls as code blocks
+					try {
+						const formatted = JSON.stringify(JSON.parse(remaining.trim()), null, 2);
+						parts.push({ type: 'code', content: formatted, language: 'json' });
+					} catch {
+						parts.push({ type: 'text', content: remaining });
+					}
 				} else {
 					parts.push({ type: 'text', content: remaining });
 				}
@@ -207,6 +245,14 @@
 		if (parts.length === thinkingParts.length && remainingText.trim()) {
 			if (containsToolResult(remainingText)) {
 				parts.push(...parseTextForToolResults(remainingText));
+			} else if (isJsonToolCall(remainingText)) {
+				// Render JSON tool calls as code blocks
+				try {
+					const formatted = JSON.stringify(JSON.parse(remainingText.trim()), null, 2);
+					parts.push({ type: 'code', content: formatted, language: 'json' });
+				} catch {
+					parts.push({ type: 'text', content: remainingText });
+				}
 			} else {
 				parts.push({ type: 'text', content: remainingText });
 			}
