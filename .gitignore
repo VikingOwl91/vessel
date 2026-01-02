@@ -33,3 +33,6 @@ backend/server
 # Docker
 *.pid
 docker-compose.override.yml
+
+# Claude Code project instructions (local only)
+CLAUDE.md
