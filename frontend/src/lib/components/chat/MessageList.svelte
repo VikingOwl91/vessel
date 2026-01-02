@@ -24,12 +24,19 @@
 	// Track if user has scrolled away from bottom
 	let userScrolledAway = $state(false);
 
+	// Track if auto-scroll is enabled for current streaming session
+	// Disabled when message top reaches viewport top or user scrolls away
+	let autoScrollEnabled = $state(true);
+
 	// Track previous streaming state to detect when streaming ends
 	// Note: Using plain variables (not $state) to avoid re-triggering effects
 	let wasStreaming = false;
 
 	// Threshold for "near bottom" detection
 	const SCROLL_THRESHOLD = 100;
+
+	// Buffer space at top of viewport before stopping auto-scroll
+	const TOP_BUFFER = 20;
 
 	/**
 	 * Check if scroll position is near the bottom
@@ -41,6 +48,26 @@
 	}
 
 	/**
+	 * Check if the streaming message's top has reached the viewport top.
+	 * This implements the "cloud provider" style auto-scroll behavior:
+	 * scroll until the response is visible at the top, then stop.
+	 */
+	function hasMessageTopReachedViewportTop(): boolean {
+		if (!scrollContainer) return false;
+
+		// Find the last assistant message (the streaming message)
+		const messages = scrollContainer.querySelectorAll('article');
+		const lastMessage = messages[messages.length - 1];
+		if (!lastMessage) return false;
+
+		const containerRect = scrollContainer.getBoundingClientRect();
+		const messageRect = lastMessage.getBoundingClientRect();
+
+		// Message top has reached viewport top when it's at or above the container's top
+		return messageRect.top <= containerRect.top + TOP_BUFFER;
+	}
+
+	/**
 	 * Handle scroll events - detect when user scrolls away
 	 */
 	function handleScroll(): void {
@@ -48,6 +75,11 @@
 
 		// User is considered "scrolled away" if not near bottom
 		userScrolledAway = !isNearBottom();
+
+		// If user manually scrolls away during streaming, disable auto-scroll
+		if (userScrolledAway && chatState.isStreaming) {
+			autoScrollEnabled = false;
+		}
 	}
 
 	/**
@@ -74,19 +106,11 @@
 	$effect(() => {
 		const isStreaming = chatState.isStreaming;
 
-		// When streaming starts, scroll to bottom if user is near bottom
+		// When streaming starts, reset auto-scroll state and do initial scroll
 		if (isStreaming && !wasStreaming) {
+			autoScrollEnabled = true;
 			if (!userScrolledAway) {
 				// Small delay to let the new message element render
-				requestAnimationFrame(() => {
-					scrollToBottomInstant();
-				});
-			}
-		}
-
-		// When streaming ends, do a final scroll if user hasn't scrolled away
-		if (!isStreaming && wasStreaming) {
-			if (!userScrolledAway) {
 				requestAnimationFrame(() => {
 					scrollToBottomInstant();
 				});
@@ -97,14 +121,22 @@
 	});
 
 	// Continuous scroll during streaming as content grows
+	// Uses "cloud provider" style: scroll until message top reaches viewport top
 	$effect(() => {
 		// Track stream buffer changes - when content grows during streaming, scroll
 		const buffer = chatState.streamBuffer;
 		const isStreaming = chatState.isStreaming;
 
-		if (isStreaming && buffer && !userScrolledAway) {
+		if (isStreaming && buffer && autoScrollEnabled) {
 			requestAnimationFrame(() => {
-				scrollToBottomInstant();
+				// Check if the message top has reached the viewport top
+				if (hasMessageTopReachedViewportTop()) {
+					// Stop auto-scrolling - the user can now read from the beginning
+					autoScrollEnabled = false;
+				} else {
+					// Continue scrolling to keep the message visible
+					scrollToBottomInstant();
+				}
 			});
 		}
 	});
@@ -116,7 +148,9 @@
 		const currentCount = chatState.visibleMessages.length;
 
 		if (currentCount > previousMessageCount && currentCount > 0) {
-			// New message added - always scroll to it
+			// New message added - reset scroll state and scroll to it
+			autoScrollEnabled = true;
+			userScrolledAway = false;
 			requestAnimationFrame(() => {
 				scrollToBottomInstant();
 			});
