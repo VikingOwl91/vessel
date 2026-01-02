@@ -10,6 +10,7 @@ export { ToastState, toastState } from './toast.svelte.js';
 export { toolsState } from './tools.svelte.js';
 export { promptsState } from './prompts.svelte.js';
 export type { Prompt } from './prompts.svelte.js';
+export { VersionState, versionState } from './version.svelte.js';
 
 // Re-export types for convenience
 export type { GroupedConversations } from './conversations.svelte.js';

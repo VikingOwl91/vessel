@@ -7,7 +7,7 @@
 	import '../app.css';
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
-	import { chatState, conversationsState, modelsState, uiState, promptsState } from '$lib/stores';
+	import { chatState, conversationsState, modelsState, uiState, promptsState, versionState } from '$lib/stores';
 	import { getAllConversations } from '$lib/storage';
 	import { syncManager } from '$lib/backend';
 	import { keyboardShortcuts, getShortcuts } from '$lib/utils';
@@ -15,6 +15,7 @@
 	import TopNav from '$lib/components/layout/TopNav.svelte';
 	import ModelSelect from '$lib/components/layout/ModelSelect.svelte';
 	import { ToastContainer, ShortcutsModal, SearchModal } from '$lib/components/shared';
+	import UpdateBanner from '$lib/components/shared/UpdateBanner.svelte';
 
 	import type { LayoutData } from './$types';
 	import type { Snippet } from 'svelte';
@@ -42,6 +43,9 @@
 		// Initialize sync manager (backend communication)
 		syncManager.initialize();
 
+		// Initialize version checker (update notifications)
+		versionState.initialize();
+
 		// Initialize keyboard shortcuts
 		keyboardShortcuts.initialize();
 		registerKeyboardShortcuts();
@@ -65,6 +69,7 @@
 		return () => {
 			uiState.destroy();
 			syncManager.destroy();
+			versionState.destroy();
 			keyboardShortcuts.destroy();
 		};
 	});
@@ -171,6 +176,9 @@
 
 <!-- Toast notifications -->
 <ToastContainer />
+
+<!-- Update notification banner -->
+<UpdateBanner />
 
 <!-- Keyboard shortcuts help -->
 <ShortcutsModal isOpen={showShortcutsModal} onClose={() => (showShortcutsModal = false)} />

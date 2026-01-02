@@ -8,7 +8,7 @@ import (
 )
 
 // SetupRoutes configures all API routes
-func SetupRoutes(r *gin.Engine, db *sql.DB, ollamaURL string) {
+func SetupRoutes(r *gin.Engine, db *sql.DB, ollamaURL string, appVersion string) {
 	// Initialize Ollama service with official client
 	ollamaService, err := NewOllamaService(ollamaURL)
 	if err != nil {
@@ -27,6 +27,9 @@ func SetupRoutes(r *gin.Engine, db *sql.DB, ollamaURL string) {
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{"status": "ok"})
 	})
+
+	// Version endpoint (for update notifications)
+	r.GET("/api/v1/version", VersionHandler(appVersion))
 
 	// API v1 routes
 	v1 := r.Group("/api/v1")

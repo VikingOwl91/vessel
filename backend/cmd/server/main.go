@@ -17,6 +17,9 @@ import (
 	"vessel-backend/internal/database"
 )
 
+// Version is set at build time via -ldflags, or defaults to dev
+var Version = "0.2.0"
+
 func getEnvOrDefault(key, defaultValue string) string {
 	if value := os.Getenv(key); value != "" {
 		return value
@@ -61,7 +64,7 @@ func main() {
 	}))
 
 	// Register routes
-	api.SetupRoutes(r, db, *ollamaURL)
+	api.SetupRoutes(r, db, *ollamaURL, Version)
 
 	// Create server
 	srv := &http.Server{
