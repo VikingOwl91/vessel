@@ -18,8 +18,8 @@ RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o server ./cmd/serv
 # Final stage
 FROM alpine:latest
 
-# curl for web fetching, ca-certificates for HTTPS
-RUN apk --no-cache add ca-certificates curl
+# curl for web fetching, ca-certificates for HTTPS, python3 for tool execution
+RUN apk --no-cache add ca-certificates curl python3
 
 WORKDIR /app
 

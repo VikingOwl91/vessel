@@ -42,6 +42,45 @@ async function executeJavaScriptTool(tool: CustomTool, args: Record<string, unkn
 }
 
 /**
+ * Execute a custom Python tool via backend API
+ *
+ * SECURITY NOTE: This sends user-provided Python code to the backend for execution.
+ * This is by design - users create custom tools with their own code.
+ * The backend executes code in a subprocess with timeout protection.
+ */
+async function executePythonTool(tool: CustomTool, args: Record<string, unknown>): Promise<unknown> {
+	if (!tool.code) {
+		throw new Error('Python tool has no code');
+	}
+
+	try {
+		const response = await fetch('/api/v1/tools/execute', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({
+				language: 'python',
+				code: tool.code,
+				args,
+				timeout: 30
+			})
+		});
+
+		if (!response.ok) {
+			throw new Error(`Backend error: ${response.status} ${response.statusText}`);
+		}
+
+		const data = await response.json();
+		if (!data.success) {
+			throw new Error(data.error || 'Python execution failed');
+		}
+
+		return data.result;
+	} catch (error) {
+		throw new Error(`Python tool error: ${error instanceof Error ? error.message : String(error)}`);
+	}
+}
+
+/**
  * Execute a custom HTTP tool
  */
 async function executeHttpTool(tool: CustomTool, args: Record<string, unknown>): Promise<unknown> {
@@ -168,6 +207,8 @@ export async function executeCustomTool(
 	switch (tool.implementation) {
 		case 'javascript':
 			return executeJavaScriptTool(tool, args);
+		case 'python':
+			return executePythonTool(tool, args);
 		case 'http':
 			return executeHttpTool(tool, args);
 		default:

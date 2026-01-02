@@ -21,3 +21,10 @@ export {
 	defaultToolConfig,
 	type ToolConfig
 } from './config.js';
+export {
+	toolTemplates,
+	getTemplatesByLanguage,
+	getTemplatesByCategory,
+	getTemplateById,
+	type ToolTemplate
+} from './templates.js';

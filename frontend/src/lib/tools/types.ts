@@ -54,7 +54,7 @@ export interface ToolResult {
 }
 
 /** Tool implementation type */
-export type ToolImplementation = 'builtin' | 'javascript' | 'http';
+export type ToolImplementation = 'builtin' | 'javascript' | 'python' | 'http';
 
 /** Custom tool configuration */
 export interface CustomTool {
@@ -63,7 +63,7 @@ export interface CustomTool {
 	description: string;
 	parameters: JSONSchema;
 	implementation: ToolImplementation;
-	/** JavaScript code for 'javascript' implementation */
+	/** Code for 'javascript' or 'python' implementation */
 	code?: string;
 	/** HTTP endpoint for 'http' implementation */
 	endpoint?: string;

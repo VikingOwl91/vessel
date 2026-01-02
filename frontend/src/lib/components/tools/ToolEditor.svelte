@@ -5,6 +5,10 @@
 
 	import { toolsState } from '$lib/stores';
 	import type { CustomTool, JSONSchema, JSONSchemaProperty, ToolImplementation } from '$lib/tools';
+	import { getTemplatesByLanguage, type ToolTemplate } from '$lib/tools';
+	import CodeEditor from './CodeEditor.svelte';
+	import ToolDocs from './ToolDocs.svelte';
+	import ToolTester from './ToolTester.svelte';
 
 	interface Props {
 		isOpen: boolean;
@@ -15,20 +19,61 @@
 
 	const { isOpen, editingTool = null, onClose, onSave }: Props = $props();
 
+	// Default code templates
+	const defaultJsCode = `// Arguments are available as \`args\` object
+// Return the result
+return { message: "Hello from custom tool!" };`;
+
+	const defaultPythonCode = `# Arguments available as \`args\` dict
+# Print JSON result to stdout
+import json
+
+result = {"message": f"Hello, {args.get('name', 'World')}!"}
+print(json.dumps(result))`;
+
 	// Form state
 	let name = $state('');
 	let description = $state('');
 	let implementation = $state<ToolImplementation>('javascript');
-	let code = $state('// Arguments are available as `args` object\n// Return the result\nreturn { message: "Hello from custom tool!" };');
+	let code = $state(defaultJsCode);
 	let endpoint = $state('');
 	let httpMethod = $state<'GET' | 'POST'>('POST');
 	let enabled = $state(true);
+
+	// Track previous implementation for code switching
+	let prevImplementation = $state<ToolImplementation>('javascript');
 
 	// Parameters state (simplified - array of parameter definitions)
 	let parameters = $state<Array<{ name: string; type: string; description: string; required: boolean }>>([]);
 
 	// Validation
 	let errors = $state<Record<string, string>>({});
+
+	// UI state
+	let showDocs = $state(false);
+	let showTemplates = $state(false);
+	let showTest = $state(false);
+
+	// Get templates for current language
+	const currentTemplates = $derived(
+		implementation === 'javascript' || implementation === 'python'
+			? getTemplatesByLanguage(implementation)
+			: []
+	);
+
+	function applyTemplate(template: ToolTemplate): void {
+		name = template.name.toLowerCase().replace(/[^a-z0-9]+/g, '_');
+		description = template.description;
+		code = template.code;
+		// Convert parameters from template
+		parameters = Object.entries(template.parameters.properties ?? {}).map(([paramName, prop]) => ({
+			name: paramName,
+			type: prop.type,
+			description: prop.description ?? '',
+			required: template.parameters.required?.includes(paramName) ?? false
+		}));
+		showTemplates = false;
+	}
 
 	// Reset form when modal opens or editing tool changes
 	$effect(() => {
@@ -59,12 +104,31 @@
 		name = '';
 		description = '';
 		implementation = 'javascript';
-		code = '// Arguments are available as `args` object\n// Return the result\nreturn { message: "Hello from custom tool!" };';
+		prevImplementation = 'javascript';
+		code = defaultJsCode;
 		endpoint = '';
 		httpMethod = 'POST';
 		enabled = true;
 		parameters = [];
 	}
+
+	// Switch to default code when implementation changes (unless editing)
+	$effect(() => {
+		if (!editingTool && implementation !== prevImplementation) {
+			// Only switch code if it's still the default for the previous type
+			const isDefaultJs = code === defaultJsCode || code.trim() === '';
+			const isDefaultPy = code === defaultPythonCode;
+
+			if (isDefaultJs || isDefaultPy || code.trim() === '') {
+				if (implementation === 'python') {
+					code = defaultPythonCode;
+				} else if (implementation === 'javascript') {
+					code = defaultJsCode;
+				}
+			}
+			prevImplementation = implementation;
+		}
+	});
 
 	function addParameter(): void {
 		parameters = [...parameters, { name: '', type: 'string', description: '', required: false }];
@@ -93,8 +157,8 @@
 			newErrors.description = 'Description is required';
 		}
 
-		if (implementation === 'javascript' && !code.trim()) {
-			newErrors.code = 'JavaScript code is required';
+		if ((implementation === 'javascript' || implementation === 'python') && !code.trim()) {
+			newErrors.code = `${implementation === 'javascript' ? 'JavaScript' : 'Python'} code is required`;
 		}
 
 		if (implementation === 'http' && !endpoint.trim()) {
@@ -144,7 +208,7 @@
 			description: description.trim(),
 			parameters: buildParameterSchema(),
 			implementation,
-			code: implementation === 'javascript' ? code : undefined,
+			code: (implementation === 'javascript' || implementation === 'python') ? code : undefined,
 			endpoint: implementation === 'http' ? endpoint : undefined,
 			httpMethod: implementation === 'http' ? httpMethod : undefined,
 			enabled,
@@ -290,7 +354,7 @@
 				<!-- Implementation Type -->
 				<div>
 					<label class="block text-sm font-medium text-theme-secondary">Implementation</label>
-					<div class="mt-2 flex gap-4">
+					<div class="mt-2 flex flex-wrap gap-4">
 						<label class="flex items-center gap-2 text-theme-secondary">
 							<input
 								type="radio"
@@ -304,6 +368,15 @@
 							<input
 								type="radio"
 								bind:group={implementation}
+								value="python"
+								class="text-blue-500"
+							/>
+							Python
+						</label>
+						<label class="flex items-center gap-2 text-theme-secondary">
+							<input
+								type="radio"
+								bind:group={implementation}
 								value="http"
 								class="text-blue-500"
 							/>
@@ -312,22 +385,102 @@
 					</div>
 				</div>
 
-				<!-- JavaScript Code -->
-				{#if implementation === 'javascript'}
+				<!-- Code Editor (JavaScript or Python) -->
+				{#if implementation === 'javascript' || implementation === 'python'}
 					<div>
-						<label for="tool-code" class="block text-sm font-medium text-theme-secondary">JavaScript Code</label>
-						<p class="mt-1 text-xs text-theme-muted">
-							Arguments are passed as an <code class="bg-theme-tertiary px-1 rounded">args</code> object. Return the result.
+						<div class="flex items-center justify-between mb-1">
+							<label class="block text-sm font-medium text-theme-secondary">
+								{implementation === 'javascript' ? 'JavaScript' : 'Python'} Code
+							</label>
+							<div class="flex items-center gap-2">
+								<!-- Templates dropdown -->
+								<div class="relative">
+									<button
+										type="button"
+										onclick={() => showTemplates = !showTemplates}
+										class="flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300"
+									>
+										<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+											<path d="M9 4.804A7.968 7.968 0 005.5 4c-1.255 0-2.443.29-3.5.804v10A7.969 7.969 0 015.5 14c1.669 0 3.218.51 4.5 1.385A7.962 7.962 0 0114.5 14c1.255 0 2.443.29 3.5.804v-10A7.968 7.968 0 0014.5 4c-1.255 0-2.443.29-3.5.804V12a1 1 0 11-2 0V4.804z" />
+										</svg>
+										Templates
+									</button>
+									{#if showTemplates && currentTemplates.length > 0}
+										<div class="absolute right-0 top-full mt-1 w-64 rounded-lg border border-theme-subtle bg-theme-secondary shadow-lg z-10">
+											<div class="p-2 space-y-1 max-h-48 overflow-y-auto">
+												{#each currentTemplates as template (template.id)}
+													<button
+														type="button"
+														onclick={() => applyTemplate(template)}
+														class="w-full text-left px-3 py-2 rounded hover:bg-theme-tertiary"
+													>
+														<div class="text-sm text-theme-primary">{template.name}</div>
+														<div class="text-xs text-theme-muted truncate">{template.description}</div>
+													</button>
+												{/each}
+											</div>
+										</div>
+									{/if}
+								</div>
+								<!-- Docs toggle -->
+								<button
+									type="button"
+									onclick={() => showDocs = !showDocs}
+									class="flex items-center gap-1 text-xs {showDocs ? 'text-emerald-400' : 'text-theme-muted hover:text-theme-secondary'}"
+								>
+									<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+										<path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
+									</svg>
+									Docs
+								</button>
+							</div>
+						</div>
+						<p class="text-xs text-theme-muted mb-2">
+							{#if implementation === 'javascript'}
+								Arguments are passed as an <code class="bg-theme-tertiary px-1 rounded">args</code> object. Return the result.
+							{:else}
+								Arguments are available as <code class="bg-theme-tertiary px-1 rounded">args</code> dict. Print JSON result to stdout.
+							{/if}
 						</p>
-						<textarea
-							id="tool-code"
-							bind:value={code}
-							rows="8"
-							class="mt-2 w-full rounded-lg border border-theme-subtle bg-theme-primary px-3 py-2 font-mono text-sm text-theme-primary placeholder-theme-muted focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-						></textarea>
+
+						<!-- Documentation panel -->
+						<ToolDocs
+							language={implementation}
+							isOpen={showDocs}
+							onclose={() => showDocs = false}
+						/>
+
+						<div class="mt-2">
+							<CodeEditor
+								bind:value={code}
+								language={implementation === 'python' ? 'python' : 'javascript'}
+								minHeight="200px"
+							/>
+						</div>
 						{#if errors.code}
 							<p class="mt-1 text-sm text-red-400">{errors.code}</p>
 						{/if}
+
+						<!-- Test button -->
+						<button
+							type="button"
+							onclick={() => showTest = !showTest}
+							class="mt-3 flex items-center gap-2 text-sm {showTest ? 'text-emerald-400' : 'text-theme-muted hover:text-theme-secondary'}"
+						>
+							<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+								<path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd" />
+							</svg>
+							{showTest ? 'Hide Test Panel' : 'Test Tool'}
+						</button>
+
+						<!-- Tool tester -->
+						<ToolTester
+							{implementation}
+							{code}
+							parameters={buildParameterSchema()}
+							isOpen={showTest}
+							onclose={() => showTest = false}
+						/>
 					</div>
 				{/if}
 

@@ -66,6 +66,9 @@ func SetupRoutes(r *gin.Engine, db *sql.DB, ollamaURL string, appVersion string)
 		// IP-based geolocation (fallback when browser geolocation fails)
 		v1.GET("/location", IPGeolocationHandler())
 
+		// Tool execution (for Python tools)
+		v1.POST("/tools/execute", ExecuteToolHandler())
+
 		// Model registry routes (cached models from ollama.com)
 		models := v1.Group("/models")
 		{
