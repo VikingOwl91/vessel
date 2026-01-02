@@ -18,7 +18,7 @@ import (
 )
 
 // Version is set at build time via -ldflags, or defaults to dev
-var Version = "0.4.6"
+var Version = "0.4.7"
 
 func getEnvOrDefault(key, defaultValue string) string {
 	if value := os.Getenv(key); value != "" {
