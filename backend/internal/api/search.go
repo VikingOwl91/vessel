@@ -15,6 +15,10 @@ import (
 type SearchRequest struct {
 	Query      string `json:"query" binding:"required"`
 	MaxResults int    `json:"maxResults"`
+	Site       string `json:"site"`      // Limit to specific site (e.g., "reddit.com")
+	Freshness  string `json:"freshness"` // Date filter: "day", "week", "month", "year"
+	Region     string `json:"region"`    // Region code (e.g., "us-en", "de-de", "uk-en")
+	Timeout    int    `json:"timeout"`   // Timeout in seconds
 }
 
 // SearchResult represents a single search result
@@ -45,13 +49,48 @@ func WebSearchProxyHandler() gin.HandlerFunc {
 			maxResults = 10
 		}
 
-		// Build DuckDuckGo HTML search URL
-		searchURL := fmt.Sprintf("https://html.duckduckgo.com/html/?q=%s", url.QueryEscape(req.Query))
+		// Build query with site filter if provided
+		query := req.Query
+		if req.Site != "" {
+			query = fmt.Sprintf("site:%s %s", req.Site, query)
+		}
+
+		// Build DuckDuckGo HTML search URL with parameters
+		searchURL := fmt.Sprintf("https://html.duckduckgo.com/html/?q=%s", url.QueryEscape(query))
+
+		// Add region parameter if provided (e.g., "us-en", "de-de", "uk-en")
+		if req.Region != "" {
+			searchURL += "&kl=" + url.QueryEscape(req.Region)
+		}
+
+		// Add date filter if provided
+		if req.Freshness != "" {
+			var df string
+			switch req.Freshness {
+			case "day", "d":
+				df = "d"
+			case "week", "w":
+				df = "w"
+			case "month", "m":
+				df = "m"
+			case "year", "y":
+				df = "y"
+			}
+			if df != "" {
+				searchURL += "&df=" + df
+			}
+		}
 
 		// Set up fetch options with browser-like headers
 		opts := DefaultFetchOptions()
-		opts.Timeout = 20 * time.Second
 		opts.MaxLength = 500000 // 500KB is plenty for search results
+
+		// Set timeout (default 20s, max 60s)
+		if req.Timeout > 0 && req.Timeout <= 60 {
+			opts.Timeout = time.Duration(req.Timeout) * time.Second
+		} else {
+			opts.Timeout = 20 * time.Second
+		}
 
 		// Fetch search results
 		result, err := fetcher.Fetch(c.Request.Context(), searchURL, opts)

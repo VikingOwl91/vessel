@@ -93,13 +93,13 @@ const calculateDefinition: ToolDefinition = {
 	type: 'function',
 	function: {
 		name: 'calculate',
-		description: 'Evaluates a math expression and returns the numeric result. Use for any calculations, unit conversions, or math problems.',
+		description: 'Evaluates a math expression and returns the numeric result. Use for any calculations, unit conversions, or math problems. Supports: +, -, *, /, %, ^ (power). Functions: sqrt, abs, sign, sin, cos, tan, asin, acos, atan, sinh, cosh, tanh, asinh, acosh, atanh, log, log10, log2, exp, round, floor, ceil, trunc. Constants: PI, E, TAU, PHI, LN2, LN10.',
 		parameters: {
 			type: 'object',
 			properties: {
 				expression: {
 					type: 'string',
-					description: 'Math expression to evaluate. Examples: "2+2", "sqrt(16)", "100*1.19", "sin(3.14/2)"'
+					description: 'Math expression to evaluate. Examples: "2+2", "sqrt(16)", "sin(PI/2)", "log2(1024)", "atan(1)*4"'
 				},
 				precision: {
 					type: 'number',
@@ -120,24 +120,48 @@ class MathParser {
 	private expr = '';
 
 	private readonly functions: Record<string, (x: number) => number> = {
+		// Basic
 		sqrt: Math.sqrt,
+		abs: Math.abs,
+		sign: Math.sign,
+		// Trigonometric
 		sin: Math.sin,
 		cos: Math.cos,
 		tan: Math.tan,
+		// Inverse trigonometric
+		asin: Math.asin,
+		acos: Math.acos,
+		atan: Math.atan,
+		// Hyperbolic
+		sinh: Math.sinh,
+		cosh: Math.cosh,
+		tanh: Math.tanh,
+		asinh: Math.asinh,
+		acosh: Math.acosh,
+		atanh: Math.atanh,
+		// Logarithmic & exponential
 		log: Math.log,
 		log10: Math.log10,
+		log2: Math.log2,
 		exp: Math.exp,
-		abs: Math.abs,
+		// Rounding
 		round: Math.round,
 		floor: Math.floor,
-		ceil: Math.ceil
+		ceil: Math.ceil,
+		trunc: Math.trunc
 	};
 
 	private readonly constants: Record<string, number> = {
 		PI: Math.PI,
 		pi: Math.PI,
 		E: Math.E,
-		e: Math.E
+		e: Math.E,
+		TAU: Math.PI * 2,
+		tau: Math.PI * 2,
+		PHI: (1 + Math.sqrt(5)) / 2, // Golden ratio
+		phi: (1 + Math.sqrt(5)) / 2,
+		LN2: Math.LN2,
+		LN10: Math.LN10
 	};
 
 	parse(expression: string): number {
@@ -607,6 +631,10 @@ const getLocationHandler: BuiltinToolHandler<GetLocationArgs> = async (args) => 
 interface WebSearchArgs {
 	query: string;
 	maxResults?: number;
+	site?: string;
+	freshness?: 'day' | 'week' | 'month' | 'year';
+	region?: string;
+	timeout?: number;
 }
 
 interface WebSearchResult {
@@ -619,7 +647,7 @@ const webSearchDefinition: ToolDefinition = {
 	type: 'function',
 	function: {
 		name: 'web_search',
-		description: 'Searches the internet and returns results with titles, URLs, and snippets. Use for weather, news, current events, facts, prices, or any real-time information. Include location in query for local results (e.g., "weather Munich" not just "weather"). Can call fetch_url on result URLs to get full content.',
+		description: 'Searches the internet and returns results with titles, URLs, and snippets. Use for weather, news, current events, facts, prices, or any real-time information. Include location in query for local results. Can call fetch_url on result URLs to get full content.',
 		parameters: {
 			type: 'object',
 			properties: {
@@ -630,6 +658,23 @@ const webSearchDefinition: ToolDefinition = {
 				maxResults: {
 					type: 'number',
 					description: 'Maximum number of results to return (1-10, default 5)'
+				},
+				site: {
+					type: 'string',
+					description: 'Limit search to a specific site (e.g., "reddit.com", "stackoverflow.com", "github.com")'
+				},
+				freshness: {
+					type: 'string',
+					description: 'Filter by recency: "day" (last 24h), "week", "month", or "year"',
+					enum: ['day', 'week', 'month', 'year']
+				},
+				region: {
+					type: 'string',
+					description: 'Region for localized results (e.g., "us-en", "de-de", "uk-en", "fr-fr")'
+				},
+				timeout: {
+					type: 'number',
+					description: 'Request timeout in seconds (default: 20, max: 60)'
 				}
 			},
 			required: ['query']
@@ -638,7 +683,7 @@ const webSearchDefinition: ToolDefinition = {
 };
 
 const webSearchHandler: BuiltinToolHandler<WebSearchArgs> = async (args) => {
-	const { query, maxResults = 5 } = args;
+	const { query, maxResults = 5, site, freshness, region, timeout } = args;
 
 	if (!query || query.trim() === '') {
 		return { error: 'Search query is required' };
@@ -649,7 +694,14 @@ const webSearchHandler: BuiltinToolHandler<WebSearchArgs> = async (args) => {
 		const proxyResponse = await fetch('/api/v1/proxy/search', {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({ query, maxResults: Math.min(Math.max(1, maxResults), 10) })
+			body: JSON.stringify({
+				query,
+				maxResults: Math.min(Math.max(1, maxResults), 10),
+				site,
+				freshness,
+				region,
+				timeout
+			})
 		});
 
 		if (proxyResponse.ok) {
