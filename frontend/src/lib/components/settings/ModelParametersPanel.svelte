@@ -5,6 +5,7 @@
 	 */
 
 	import { settingsState } from '$lib/stores/settings.svelte';
+	import { modelsState, type ModelDefaults } from '$lib/stores/models.svelte';
 	import {
 		PARAMETER_RANGES,
 		PARAMETER_LABELS,
@@ -15,6 +16,26 @@
 
 	// Parameter keys for iteration
 	const parameterKeys: (keyof ModelParameters)[] = ['temperature', 'top_k', 'top_p', 'num_ctx'];
+
+	// Track model defaults for the selected model
+	let modelDefaults = $state<ModelDefaults>({});
+
+	// Fetch model defaults when panel opens or model changes
+	$effect(() => {
+		if (settingsState.isPanelOpen && modelsState.selectedId) {
+			modelsState.fetchModelDefaults(modelsState.selectedId).then((defaults) => {
+				modelDefaults = defaults;
+			});
+		}
+	});
+
+	/**
+	 * Get the default value for a parameter (from model or hardcoded fallback)
+	 */
+	function getDefaultValue(key: keyof ModelParameters): number {
+		const modelValue = modelDefaults[key];
+		return modelValue ?? DEFAULT_MODEL_PARAMETERS[key];
+	}
 
 	/**
 	 * Format a parameter value for display
@@ -79,7 +100,7 @@
 				type="button"
 				role="switch"
 				aria-checked={settingsState.useCustomParameters}
-				onclick={() => settingsState.toggleCustomParameters()}
+				onclick={() => settingsState.toggleCustomParameters(modelDefaults)}
 				class="relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-2 focus:ring-offset-theme-secondary {settingsState.useCustomParameters ? 'bg-sky-600' : 'bg-theme-tertiary'}"
 			>
 				<span
@@ -93,7 +114,7 @@
 			{#each parameterKeys as key}
 				{@const range = PARAMETER_RANGES[key]}
 				{@const value = getValue(key)}
-				{@const isDefault = value === DEFAULT_MODEL_PARAMETERS[key]}
+				{@const isDefault = value === getDefaultValue(key)}
 
 				<div>
 					<div class="mb-1 flex items-center justify-between">
@@ -132,7 +153,7 @@
 		<div class="mt-4 flex justify-end">
 			<button
 				type="button"
-				onclick={() => settingsState.resetToDefaults()}
+				onclick={() => settingsState.resetToDefaults(modelDefaults)}
 				class="rounded px-2 py-1 text-xs text-theme-muted hover:bg-theme-tertiary hover:text-theme-secondary"
 			>
 				Reset to defaults

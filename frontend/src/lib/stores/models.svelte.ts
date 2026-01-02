@@ -65,6 +65,14 @@ export interface ModelUpdateStatus {
 	localModifiedAt: string;
 }
 
+/** Model default parameters from Ollama */
+export interface ModelDefaults {
+	temperature?: number;
+	top_k?: number;
+	top_p?: number;
+	num_ctx?: number;
+}
+
 /** Models state class with reactive properties */
 export class ModelsState {
 	// Core state
@@ -80,6 +88,10 @@ export class ModelsState {
 	// Capabilities cache: modelName -> capabilities array
 	private capabilitiesCache = $state<Map<string, OllamaCapability[]>>(new Map());
 	private capabilitiesFetching = new Set<string>();
+
+	// Model defaults cache: modelName -> default parameters
+	private modelDefaultsCache = $state<Map<string, ModelDefaults>>(new Map());
+	private modelDefaultsFetching = new Set<string>();
 
 	// Derived: Currently selected model
 	selected = $derived.by(() => {
@@ -428,6 +440,99 @@ export class ModelsState {
 			if (status.hasUpdate) count++;
 		}
 		return count;
+	}
+
+	// =========================================================================
+	// Model Defaults
+	// =========================================================================
+
+	/**
+	 * Parse model parameters from the Ollama show response
+	 * The parameters field contains lines like "temperature 0.7" or "num_ctx 4096"
+	 */
+	private parseModelParameters(parametersStr: string): ModelDefaults {
+		const defaults: ModelDefaults = {};
+
+		if (!parametersStr) return defaults;
+
+		const lines = parametersStr.split('\n');
+		for (const line of lines) {
+			const trimmed = line.trim();
+			if (!trimmed) continue;
+
+			// Parse "key value" format
+			const spaceIndex = trimmed.indexOf(' ');
+			if (spaceIndex === -1) continue;
+
+			const key = trimmed.substring(0, spaceIndex).toLowerCase();
+			const value = trimmed.substring(spaceIndex + 1).trim();
+
+			switch (key) {
+				case 'temperature':
+					defaults.temperature = parseFloat(value);
+					break;
+				case 'top_k':
+					defaults.top_k = parseInt(value, 10);
+					break;
+				case 'top_p':
+					defaults.top_p = parseFloat(value);
+					break;
+				case 'num_ctx':
+					defaults.num_ctx = parseInt(value, 10);
+					break;
+			}
+		}
+
+		return defaults;
+	}
+
+	/**
+	 * Fetch model defaults from Ollama /api/show
+	 */
+	async fetchModelDefaults(modelName: string): Promise<ModelDefaults> {
+		// Check cache first
+		const cached = this.modelDefaultsCache.get(modelName);
+		if (cached) return cached;
+
+		// Avoid duplicate fetches
+		if (this.modelDefaultsFetching.has(modelName)) {
+			await new Promise((r) => setTimeout(r, 100));
+			return this.modelDefaultsCache.get(modelName) ?? {};
+		}
+
+		this.modelDefaultsFetching.add(modelName);
+
+		try {
+			const response = await ollamaClient.showModel(modelName);
+			const defaults = this.parseModelParameters(response.parameters);
+
+			// Update cache reactively
+			const newCache = new Map(this.modelDefaultsCache);
+			newCache.set(modelName, defaults);
+			this.modelDefaultsCache = newCache;
+
+			return defaults;
+		} catch (err) {
+			console.warn(`Failed to fetch defaults for ${modelName}:`, err);
+			return {};
+		} finally {
+			this.modelDefaultsFetching.delete(modelName);
+		}
+	}
+
+	/**
+	 * Get cached model defaults (returns empty if not fetched)
+	 */
+	getModelDefaults(modelName: string): ModelDefaults {
+		return this.modelDefaultsCache.get(modelName) ?? {};
+	}
+
+	/**
+	 * Get defaults for selected model
+	 */
+	get selectedModelDefaults(): ModelDefaults {
+		if (!this.selectedId) return {};
+		return this.modelDefaultsCache.get(this.selectedId) ?? {};
 	}
 }
 

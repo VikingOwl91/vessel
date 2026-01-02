@@ -10,6 +10,7 @@ import {
 	DEFAULT_CHAT_SETTINGS,
 	PARAMETER_RANGES
 } from '$lib/types/settings';
+import type { ModelDefaults } from './models.svelte';
 
 const STORAGE_KEY = 'vessel-settings';
 
@@ -79,10 +80,28 @@ export class SettingsState {
 
 	/**
 	 * Toggle whether to use custom parameters
+	 * When enabling, optionally initialize from model defaults
 	 */
-	toggleCustomParameters(): void {
+	toggleCustomParameters(modelDefaults?: ModelDefaults): void {
 		this.useCustomParameters = !this.useCustomParameters;
+
+		// When enabling custom parameters, initialize from model defaults if provided
+		if (this.useCustomParameters && modelDefaults) {
+			this.initializeFromModelDefaults(modelDefaults);
+		}
+
 		this.saveToStorage();
+	}
+
+	/**
+	 * Initialize parameters from model defaults
+	 * Falls back to hardcoded defaults for any missing values
+	 */
+	initializeFromModelDefaults(modelDefaults: ModelDefaults): void {
+		this.temperature = modelDefaults.temperature ?? DEFAULT_MODEL_PARAMETERS.temperature;
+		this.top_k = modelDefaults.top_k ?? DEFAULT_MODEL_PARAMETERS.top_k;
+		this.top_p = modelDefaults.top_p ?? DEFAULT_MODEL_PARAMETERS.top_p;
+		this.num_ctx = modelDefaults.num_ctx ?? DEFAULT_MODEL_PARAMETERS.num_ctx;
 	}
 
 	/**
@@ -112,14 +131,13 @@ export class SettingsState {
 	}
 
 	/**
-	 * Reset all parameters to defaults
+	 * Reset all parameters to model defaults (or hardcoded defaults if not available)
 	 */
-	resetToDefaults(): void {
-		this.temperature = DEFAULT_MODEL_PARAMETERS.temperature;
-		this.top_k = DEFAULT_MODEL_PARAMETERS.top_k;
-		this.top_p = DEFAULT_MODEL_PARAMETERS.top_p;
-		this.num_ctx = DEFAULT_MODEL_PARAMETERS.num_ctx;
-		this.useCustomParameters = false;
+	resetToDefaults(modelDefaults?: ModelDefaults): void {
+		this.temperature = modelDefaults?.temperature ?? DEFAULT_MODEL_PARAMETERS.temperature;
+		this.top_k = modelDefaults?.top_k ?? DEFAULT_MODEL_PARAMETERS.top_k;
+		this.top_p = modelDefaults?.top_p ?? DEFAULT_MODEL_PARAMETERS.top_p;
+		this.num_ctx = modelDefaults?.num_ctx ?? DEFAULT_MODEL_PARAMETERS.num_ctx;
 		this.saveToStorage();
 	}
 
