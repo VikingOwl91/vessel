@@ -604,12 +604,16 @@
 				// The results are stored in toolCalls and displayed by ToolCallDisplay
 			}
 
-			// Persist the assistant message (without flooding text content)
+			// Persist the assistant message (including toolCalls for reload persistence)
 			if (conversationId && assistantNode) {
 				const parentOfAssistant = assistantNode.parentId;
 				await addStoredMessage(
 					conversationId,
-					{ role: 'assistant', content: assistantNode.message.content },
+					{
+						role: 'assistant',
+						content: assistantNode.message.content,
+						toolCalls: assistantNode.message.toolCalls
+					},
 					parentOfAssistant,
 					assistantMessageId
 				);
