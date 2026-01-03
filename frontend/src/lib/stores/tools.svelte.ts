@@ -110,8 +110,25 @@ class ToolsState {
 			return [];
 		}
 
-		const definitions = toolRegistry.getDefinitions();
-		return definitions.filter(def => this.isToolEnabled(def.function.name));
+		// Get enabled builtin tools
+		const builtinDefs = toolRegistry.getDefinitions();
+		const enabled = builtinDefs.filter(def => this.isToolEnabled(def.function.name));
+
+		// Add enabled custom tools
+		for (const custom of this.customTools) {
+			if (custom.enabled && this.isToolEnabled(custom.name)) {
+				enabled.push({
+					type: 'function',
+					function: {
+						name: custom.name,
+						description: custom.description,
+						parameters: custom.parameters
+					}
+				});
+			}
+		}
+
+		return enabled;
 	}
 
 	/**
