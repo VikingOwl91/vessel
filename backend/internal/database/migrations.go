@@ -93,6 +93,138 @@ CREATE INDEX IF NOT EXISTS idx_remote_models_name ON remote_models(name);
 CREATE INDEX IF NOT EXISTS idx_remote_models_model_type ON remote_models(model_type);
 CREATE INDEX IF NOT EXISTS idx_remote_models_pull_count ON remote_models(pull_count DESC);
 CREATE INDEX IF NOT EXISTS idx_remote_models_scraped_at ON remote_models(scraped_at);
+
+-- Settings table (key-value store for simple settings)
+CREATE TABLE IF NOT EXISTS settings (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL,
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- Backend configurations table (LLM backend settings)
+CREATE TABLE IF NOT EXISTS backend_configs (
+    name TEXT PRIMARY KEY,
+    type TEXT NOT NULL,
+    enabled INTEGER NOT NULL DEFAULT 1,
+    config_json TEXT NOT NULL DEFAULT '{}',
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- GGUF models table (local models with canonical identity)
+CREATE TABLE IF NOT EXISTS gguf_models (
+    id TEXT PRIMARY KEY,                    -- Computed from sha256
+    repo_id TEXT,                           -- HuggingFace repo (nullable for local files)
+    filename TEXT NOT NULL,
+    file_path TEXT NOT NULL,
+    sha256 TEXT NOT NULL,                   -- Checksum for identity verification
+    file_size INTEGER NOT NULL,
+
+    -- Metadata (extracted from GGUF or manifest)
+    architecture TEXT,                      -- llama, mistral, qwen, etc.
+    parameter_count TEXT,                   -- 7B, 13B, 70B
+    quantization TEXT,                      -- Q4_K_M, Q8_0, F16
+    context_length INTEGER,                 -- Max context window
+
+    -- Chat template (critical for correct formatting)
+    chat_template TEXT,                     -- Jinja2 template string
+    chat_template_name TEXT,                -- Template identifier (chatml, llama2, etc.)
+    stop_sequences TEXT DEFAULT '[]',       -- JSON array of stop tokens
+    bos_token TEXT,                         -- Beginning of sequence token
+    eos_token TEXT,                         -- End of sequence token
+    default_system_prompt TEXT,             -- Default system message
+
+    -- Status tracking
+    download_status TEXT DEFAULT 'complete' CHECK (download_status IN ('pending', 'downloading', 'complete', 'failed', 'paused')),
+    download_progress INTEGER DEFAULT 0,
+    verified_at TEXT,                       -- Last checksum verification
+
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+
+    UNIQUE(file_path)
+);
+
+-- Indexes for GGUF models
+CREATE INDEX IF NOT EXISTS idx_gguf_models_sha256 ON gguf_models(sha256);
+CREATE INDEX IF NOT EXISTS idx_gguf_models_repo_id ON gguf_models(repo_id);
+CREATE INDEX IF NOT EXISTS idx_gguf_models_architecture ON gguf_models(architecture);
+CREATE INDEX IF NOT EXISTS idx_gguf_models_download_status ON gguf_models(download_status);
+
+-- Chat templates table (centralized template storage)
+CREATE TABLE IF NOT EXISTS chat_templates (
+    name TEXT PRIMARY KEY,                  -- Template identifier (chatml, llama2, mistral, etc.)
+    template TEXT NOT NULL,                 -- Jinja2 or Go template string
+    stop_sequences TEXT DEFAULT '[]',       -- JSON array of stop tokens
+    bos_token TEXT,
+    eos_token TEXT,
+    system_format TEXT,                     -- How to format system messages
+    add_generation_prompt INTEGER DEFAULT 1, -- Whether to add assistant prefix
+    description TEXT,                       -- Human-readable description
+    source TEXT,                            -- Where this template came from
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- Pre-populate common chat templates
+INSERT OR IGNORE INTO chat_templates (name, template, stop_sequences, bos_token, eos_token, description) VALUES
+('chatml', '<|im_start|>system
+{{system}}<|im_end|>
+<|im_start|>user
+{{user}}<|im_end|>
+<|im_start|>assistant
+{{assistant}}<|im_end|>', '["<|im_end|>", "<|im_start|>"]', '<|im_start|>', '<|im_end|>', 'ChatML format used by many models'),
+('llama2', '[INST] <<SYS>>
+{{system}}
+<</SYS>>
+
+{{user}} [/INST] {{assistant}} </s>', '["</s>"]', '<s>', '</s>', 'Llama 2 chat format'),
+('llama3', '<|begin_of_text|><|start_header_id|>system<|end_header_id|>
+
+{{system}}<|eot_id|><|start_header_id|>user<|end_header_id|}
+
+{{user}}<|eot_id|><|start_header_id|>assistant<|end_header_id|>
+
+{{assistant}}<|eot_id|>', '["<|eot_id|>", "<|end_of_text|>"]', '<|begin_of_text|>', '<|end_of_text|>', 'Llama 3 chat format'),
+('mistral', '[INST] {{system}}
+
+{{user}} [/INST]{{assistant}}</s>', '["</s>"]', '<s>', '</s>', 'Mistral instruct format'),
+('gemma', '<start_of_turn>user
+{{user}}<end_of_turn>
+<start_of_turn>model
+{{assistant}}<end_of_turn>', '["<end_of_turn>"]', '<bos>', '<eos>', 'Google Gemma format'),
+('phi3', '<|system|>
+{{system}}<|end|>
+<|user|>
+{{user}}<|end|>
+<|assistant|>
+{{assistant}}<|end|>', '["<|end|>", "<|endoftext|>"]', '', '<|endoftext|>', 'Microsoft Phi-3 format'),
+('qwen2', '<|im_start|>system
+{{system}}<|im_end|>
+<|im_start|>user
+{{user}}<|im_end|>
+<|im_start|>assistant
+{{assistant}}<|im_end|>', '["<|im_end|>", "<|endoftext|>"]', '', '<|endoftext|>', 'Qwen 2 format (ChatML variant)');
+
+-- Model-to-template mapping (for models that don't embed their template)
+CREATE TABLE IF NOT EXISTS model_template_mappings (
+    model_pattern TEXT PRIMARY KEY,         -- Glob pattern to match model names
+    template_name TEXT NOT NULL,            -- References chat_templates.name
+    priority INTEGER DEFAULT 0,             -- Higher priority = checked first
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY (template_name) REFERENCES chat_templates(name)
+);
+
+-- Pre-populate common model patterns
+INSERT OR IGNORE INTO model_template_mappings (model_pattern, template_name, priority) VALUES
+('*llama-3*', 'llama3', 100),
+('*llama-2*', 'llama2', 90),
+('*mistral*', 'mistral', 80),
+('*gemma*', 'gemma', 80),
+('*phi-3*', 'phi3', 80),
+('*qwen*', 'qwen2', 80),
+('*chatml*', 'chatml', 50),
+('*', 'chatml', 0);
 `
 
 // Additional migrations for schema updates (run separately to handle existing tables)

@@ -7,6 +7,8 @@
 	import { onMount } from 'svelte';
 	import { modelsState, uiState, settingsState, promptsState } from '$lib/stores';
 	import { modelPromptMappingsState } from '$lib/stores/model-prompt-mappings.svelte.js';
+	import BackendSettings from '$lib/components/settings/BackendSettings.svelte';
+	import ModelBrowser from '$lib/components/settings/ModelBrowser.svelte';
 	import { modelInfoService, type ModelInfo } from '$lib/services/model-info-service.js';
 	import { getPrimaryModifierDisplay } from '$lib/utils';
 	import { PARAMETER_RANGES, PARAMETER_LABELS, PARAMETER_DESCRIPTIONS, AUTO_COMPACT_RANGES } from '$lib/types/settings';
@@ -115,6 +117,12 @@
 				</div>
 			</div>
 		</section>
+
+		<!-- LLM Backends Section -->
+		<BackendSettings />
+
+		<!-- GGUF Model Browser Section -->
+		<ModelBrowser />
 
 		<!-- Chat Defaults Section -->
 		<section class="mb-8">

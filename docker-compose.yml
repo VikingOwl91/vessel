@@ -27,6 +27,11 @@ services:
     environment:
       - OLLAMA_URL=http://host.docker.internal:11434
       - PORT=9090
+      # VLM (Vessel Llama Manager) - host-native llama.cpp orchestrator
+      # Values can be overridden via .env file (created by install.sh)
+      - VLM_URL=${VLM_URL:-http://host.docker.internal:32789}
+      - VLM_ENABLED=${VLM_ENABLED:-true}
+      - VLM_TOKEN=${VLM_TOKEN:-}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:

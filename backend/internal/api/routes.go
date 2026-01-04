@@ -3,8 +3,12 @@ package api
 import (
 	"database/sql"
 	"log"
+	"os"
 
 	"github.com/gin-gonic/gin"
+
+	// LLM multi-backend support
+	// "vessel-backend/internal/llm"
 )
 
 // SetupRoutes configures all API routes
@@ -34,6 +38,9 @@ func SetupRoutes(r *gin.Engine, db *sql.DB, ollamaURL string, appVersion string)
 	// API v1 routes
 	v1 := r.Group("/api/v1")
 	{
+		// Runtime backends status (Ollama, VLM, llama.cpp)
+		v1.GET("/runtimes", RuntimesHandler(ollamaURL))
+
 		// Chat routes
 		chats := v1.Group("/chats")
 		{
@@ -125,5 +132,32 @@ func SetupRoutes(r *gin.Engine, db *sql.DB, ollamaURL string, appVersion string)
 
 		// Fallback proxy for direct Ollama access (separate path to avoid conflicts)
 		v1.Any("/ollama-proxy/*path", OllamaProxyHandler(ollamaURL))
+
+		// HuggingFace API routes (GGUF model search and download)
+		hfToken := os.Getenv("HUGGINGFACE_TOKEN")
+		hfModelsDir := os.Getenv("HUGGINGFACE_MODELS_DIR") // Optional, defaults to ~/.vessel/models
+		hfService, err := NewHuggingFaceService(hfToken, hfModelsDir)
+		if err != nil {
+			log.Printf("Warning: Failed to initialize HuggingFace service: %v", err)
+		} else {
+			hfService.SetupRoutes(v1)
+		}
+
+		// LLM multi-backend routes (unified interface)
+		// To enable, initialize LLMService with a Manager in main.go:
+		//
+		//   llmManager := llm.NewManager(db)
+		//   // Register backends...
+		//   llmService := api.NewLLMService(llmManager)
+		//   llmService.SetupRoutes(v1.Group("/llm"))
+		//
+		// This provides:
+		//   GET  /api/v1/llm/backends           - List all backends with status
+		//   PUT  /api/v1/llm/backends/primary   - Set primary backend
+		//   POST /api/v1/llm/chat               - Chat via primary (or ?backend=name)
+		//   GET  /api/v1/llm/models             - List models (or ?all=true)
+		//   GET  /api/v1/llm/models/:name       - Model details
+		//   GET  /api/v1/llm/backends/:name/models - Models for specific backend
+		//   POST /api/v1/llm/backends/:name/chat   - Chat with specific backend
 	}
 }

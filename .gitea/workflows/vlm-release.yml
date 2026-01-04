@@ -1,0 +1,79 @@
+name: VLM Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - goos: linux
+            goarch: amd64
+          - goos: linux
+            goarch: arm64
+          - goos: darwin
+            goarch: arm64
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+
+      - name: Get version
+        id: version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+      - name: Build VLM
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: 0
+        run: |
+          cd apps/vlm
+          go build -ldflags="-s -w -X main.Version=${{ steps.version.outputs.VERSION }}" \
+            -o vlm_${{ steps.version.outputs.VERSION }}_${{ matrix.goos }}_${{ matrix.goarch }} \
+            ./cmd/vlm/
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: vlm_${{ steps.version.outputs.VERSION }}_${{ matrix.goos }}_${{ matrix.goarch }}
+          path: apps/vlm/vlm_${{ steps.version.outputs.VERSION }}_${{ matrix.goos }}_${{ matrix.goarch }}
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Get version
+        id: version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+      - name: Generate checksums
+        run: |
+          cd artifacts
+          find . -type f -name 'vlm_*' -exec mv {} . \;
+          sha256sum vlm_* > checksums.txt
+          cat checksums.txt
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            artifacts/vlm_*
+            artifacts/checksums.txt
+          draft: false
+          prerelease: false
+          generate_release_notes: true

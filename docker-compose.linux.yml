@@ -1,0 +1,10 @@
+# Linux-specific Docker Compose override
+# Applied automatically by install.sh on Linux systems
+#
+# This adds the host.docker.internal mapping that Docker Desktop
+# provides automatically on macOS/Windows but not on Linux.
+
+services:
+  backend:
+    extra_hosts:
+      - "host.docker.internal:host-gateway"

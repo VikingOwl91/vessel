@@ -25,6 +25,22 @@ BACKEND_PORT=9090
 OLLAMA_PORT=11434
 COMPOSE_CMD="docker compose"
 
+# VLM (Vessel Llama Manager) configuration
+VLM_ENABLED="${VLM_ENABLED:-true}"
+VLM_PORT=32789
+VLM_BIN_DIR="$VESSEL_DIR/bin"
+VLM_BIN="$VLM_BIN_DIR/vlm"
+VLM_CONFIG="$VESSEL_DIR/llm.toml"
+VLM_STATE_DIR="$VESSEL_DIR/state"
+VLM_LOG_DIR="$VESSEL_DIR/logs"
+VLM_MODELS_DIR="$VESSEL_DIR/models"
+VLM_RELEASE_BASE="https://somegit.dev/vikingowl/vessel/releases/download"
+VLM_LATEST_URL="https://somegit.dev/vikingowl/vessel/raw/main/vlm_latest.txt"
+VLM_VERSION="${VLM_VERSION:-latest}"
+
+# Compose file selection (set by detect_os)
+COMPOSE_FILES=(-f docker-compose.yml)
+
 # Colors (disabled if not a terminal)
 if [[ -t 1 ]]; then
     RED='\033[0;31m'
@@ -151,6 +167,20 @@ detect_os() {
         *)       fatal "Unsupported operating system: $(uname -s)" ;;
     esac
     info "Detected OS: $OS"
+
+    # Linux needs extra_hosts for host.docker.internal
+    if [[ "$OS" == "linux" ]]; then
+        COMPOSE_FILES=(-f docker-compose.yml -f docker-compose.linux.yml)
+    fi
+}
+
+detect_arch() {
+    case "$(uname -m)" in
+        x86_64|amd64)   ARCH="amd64" ;;
+        aarch64|arm64)  ARCH="arm64" ;;
+        *)              fatal "Unsupported architecture: $(uname -m)" ;;
+    esac
+    info "Detected architecture: $ARCH"
 }
 
 # =============================================================================
@@ -174,6 +204,264 @@ check_ollama() {
             exit 1
         fi
     fi
+}
+
+# =============================================================================
+# VLM Installation
+# =============================================================================
+
+generate_token() {
+    if command -v openssl >/dev/null; then
+        openssl rand -hex 32
+    else
+        head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \n'
+    fi
+}
+
+resolve_vlm_version() {
+    local version="$VLM_VERSION"
+
+    # Normalize: strip leading 'v' if present (user might pass v0.1.0 or 0.1.0)
+    version="${version#v}"
+
+    if [[ "$version" != "latest" ]]; then
+        echo "$version"
+        return
+    fi
+
+    # Fetch latest version from text file
+    local resolved
+    resolved=$(curl -fsSL "$VLM_LATEST_URL" 2>/dev/null | tr -d '[:space:]')
+
+    if [[ -z "$resolved" ]]; then
+        warn "Could not resolve latest VLM version from $VLM_LATEST_URL"
+        warn "Skipping VLM binary download"
+        return 1
+    fi
+
+    # Also strip 'v' from resolved version (in case file contains it)
+    resolved="${resolved#v}"
+    echo "$resolved"
+}
+
+verify_checksum() {
+    local file="$1"
+    local expected="$2"
+
+    local actual
+    if command -v sha256sum &>/dev/null; then
+        actual=$(sha256sum "$file" | awk '{print $1}')
+    elif command -v shasum &>/dev/null; then
+        actual=$(shasum -a 256 "$file" | awk '{print $1}')
+    else
+        warn "No sha256sum or shasum available, skipping checksum verification"
+        return 0
+    fi
+
+    if [[ "$actual" != "$expected" ]]; then
+        error "Checksum mismatch!"
+        error "  Expected: $expected"
+        error "  Got:      $actual"
+        return 1
+    fi
+
+    return 0
+}
+
+download_vlm() {
+    if [[ "$VLM_ENABLED" != "true" ]]; then
+        info "VLM disabled, skipping binary download"
+        return
+    fi
+
+    mkdir -p "$VLM_BIN_DIR" "$VLM_LOG_DIR" "$VLM_STATE_DIR" "$VLM_MODELS_DIR"
+
+    # Resolve version (handles "latest" -> actual version)
+    local version
+    if ! version=$(resolve_vlm_version); then
+        return
+    fi
+
+    # Determine asset name based on OS/arch
+    # Format: vlm_<version>_<os>_<arch>
+    local asset="vlm_${version}_${OS}_${ARCH}"
+    local release_url="${VLM_RELEASE_BASE}/v${version}"
+    local binary_url="${release_url}/${asset}"
+    local checksums_url="${release_url}/checksums.txt"
+
+    info "VLM version: ${version}"
+    info "Download URL: ${binary_url}"
+
+    # Download checksums first (optional - warn if unavailable)
+    local expected_checksum=""
+    local checksums_file="/tmp/vlm_checksums_$$.txt"
+
+    if curl -fsSL "$checksums_url" -o "$checksums_file" 2>/dev/null; then
+        expected_checksum=$(grep "$asset" "$checksums_file" 2>/dev/null | awk '{print $1}')
+        if [[ -n "$expected_checksum" ]]; then
+            info "Checksum: ${expected_checksum:0:16}..."
+        else
+            warn "Asset not found in checksums.txt, skipping verification"
+        fi
+        rm -f "$checksums_file"
+    else
+        warn "checksums.txt not available, skipping verification"
+    fi
+
+    # Download binary
+    if ! curl -fsSL "$binary_url" -o "${VLM_BIN}.new" 2>/dev/null; then
+        warn "VLM binary not available at: $binary_url"
+        warn "This is expected if VLM hasn't been released yet."
+        warn "Build manually: cd apps/vlm && go build -o ~/.vessel/bin/vlm ./cmd/vlm/"
+        return
+    fi
+
+    # Verify checksum if available
+    if [[ -n "$expected_checksum" ]]; then
+        if ! verify_checksum "${VLM_BIN}.new" "$expected_checksum"; then
+            rm -f "${VLM_BIN}.new"
+            fatal "VLM binary checksum verification failed - aborting for security"
+        fi
+        success "Checksum verified"
+    fi
+
+    chmod +x "${VLM_BIN}.new"
+
+    # Rollback: keep old binary
+    if [[ -f "$VLM_BIN" ]]; then
+        mv "$VLM_BIN" "${VLM_BIN}.old" || true
+    fi
+
+    mv "${VLM_BIN}.new" "$VLM_BIN"
+
+    # Verify it runs
+    if ! "$VLM_BIN" --version &>/dev/null; then
+        warn "VLM binary failed to execute"
+        if [[ -f "${VLM_BIN}.old" ]]; then
+            mv "${VLM_BIN}.old" "$VLM_BIN"
+            warn "Rolled back to previous version"
+        fi
+        return
+    fi
+
+    success "VLM v${version} installed at $VLM_BIN"
+}
+
+ensure_vlm_config() {
+    if [[ "$VLM_ENABLED" != "true" ]]; then
+        return
+    fi
+
+    if [[ -f "$VLM_CONFIG" ]]; then
+        info "VLM config exists at $VLM_CONFIG"
+
+        # Check if auth_token is empty and patch it
+        if grep -q 'auth_token = ""' "$VLM_CONFIG" 2>/dev/null; then
+            local token
+            token=$(generate_token)
+            # Use sed with backup (works on both GNU and BSD sed)
+            sed -i.bak "s|auth_token = \"\"|auth_token = \"${token}\"|" "$VLM_CONFIG"
+            rm -f "${VLM_CONFIG}.bak"
+            success "Generated auth token for VLM"
+        fi
+        return
+    fi
+
+    info "Creating VLM config at $VLM_CONFIG"
+
+    local token
+    token=$(generate_token)
+
+    cat > "$VLM_CONFIG" << EOF
+# VLM (Vessel Llama Manager) Configuration
+# Documentation: https://somegit.dev/vikingowl/vessel
+
+[meta]
+schema_version = 1
+
+[vlm]
+# 0.0.0.0 allows Docker containers to reach VLM via host.docker.internal
+# For localhost-only, change to 127.0.0.1 (requires host networking in Docker)
+bind = "0.0.0.0:${VLM_PORT}"
+auth_token = "${token}"
+log_dir = "${VLM_LOG_DIR}"
+state_dir = "${VLM_STATE_DIR}"
+
+[security]
+require_token_for_inference = true
+
+[scheduler]
+max_concurrent_requests = 2
+queue_size = 64
+interactive_reserve = 1
+
+[models]
+directories = ["${VLM_MODELS_DIR}", "~/Models/gguf"]
+scan_interval = "30s"
+
+[llamacpp]
+active_profile = "default"
+active_model_id = ""
+
+[llamacpp.switching]
+startup_timeout = "60s"
+graceful_timeout = "8s"
+keep_old_until_ready = true
+
+[[llamacpp.profiles]]
+name = "default"
+llama_server_path = ""
+preferred_backend = "auto"
+extra_env = []
+default_args = ["-c", "8192", "--batch-size", "512"]
+EOF
+
+    success "Created VLM config with auth token"
+    echo ""
+    warn "Edit $VLM_CONFIG to set llama_server_path to your llama-server binary"
+}
+
+set_env_kv() {
+    local key="$1" val="$2" file="$3"
+    mkdir -p "$(dirname "$file")"
+    touch "$file"
+    if grep -q "^${key}=" "$file" 2>/dev/null; then
+        # Use sed with backup for portability
+        sed -i.bak "s|^${key}=.*|${key}=${val}|" "$file"
+        rm -f "${file}.bak"
+    else
+        echo "${key}=${val}" >> "$file"
+    fi
+}
+
+setup_vlm_env() {
+    if [[ "$VLM_ENABLED" != "true" ]]; then
+        return
+    fi
+
+    local env_file="$VESSEL_DIR/.env"
+
+    # Read token from config if it exists
+    local token=""
+    if [[ -f "$VLM_CONFIG" ]]; then
+        token=$(grep 'auth_token' "$VLM_CONFIG" 2>/dev/null | sed 's/.*= *"\([^"]*\)".*/\1/' | head -1)
+    fi
+
+    # Set VLM environment variables for Docker Compose
+    set_env_kv "VLM_ENABLED" "true" "$env_file"
+
+    # Use host.docker.internal for containers to reach host VLM
+    if [[ "$OS" == "linux" ]]; then
+        set_env_kv "VLM_URL" "http://host.docker.internal:${VLM_PORT}" "$env_file"
+    else
+        set_env_kv "VLM_URL" "http://host.docker.internal:${VLM_PORT}" "$env_file"
+    fi
+
+    if [[ -n "$token" ]]; then
+        set_env_kv "VLM_TOKEN" "$token" "$env_file"
+    fi
+
+    success "VLM environment configured in $env_file"
 }
 
 # =============================================================================
@@ -226,6 +514,13 @@ check_ports() {
         has_conflict=true
     fi
 
+    # Check VLM port (host-side, only warn)
+    if [[ "$VLM_ENABLED" == "true" ]]; then
+        if ! check_port_available $VLM_PORT "VLM"; then
+            warn "VLM port $VLM_PORT is in use - VLM may fail to start"
+        fi
+    fi
+
     if [[ "$has_conflict" == true ]]; then
         if ! prompt_yes_no "Continue anyway?" "n"; then
             fatal "Aborted due to port conflicts"
@@ -236,7 +531,7 @@ check_ports() {
 start_services() {
     info "Starting Vessel services..."
 
-    $COMPOSE_CMD up -d --build
+    $COMPOSE_CMD "${COMPOSE_FILES[@]}" up -d --build
 
     success "Services started"
 }
@@ -326,6 +621,17 @@ print_success() {
     echo -e "    Update:         ${CYAN}cd $VESSEL_DIR && ./install.sh --update${NC}"
     echo -e "    Pull model:     ${CYAN}ollama pull <model>${NC}"
     echo ""
+
+    if [[ "$VLM_ENABLED" == "true" ]]; then
+        echo -e "  ${BOLD}VLM (llama.cpp manager):${NC}"
+        echo -e "    Binary:         ${CYAN}$VLM_BIN${NC}"
+        echo -e "    Config:         ${CYAN}$VLM_CONFIG${NC}"
+        echo -e "    Start VLM:      ${CYAN}$VLM_BIN --config $VLM_CONFIG${NC}"
+        echo ""
+        echo -e "  ${YELLOW}Note: VLM is not started automatically.${NC}"
+        echo -e "  ${YELLOW}Edit $VLM_CONFIG to set llama_server_path, then start VLM.${NC}"
+        echo ""
+    fi
 }
 
 # =============================================================================
@@ -343,12 +649,24 @@ do_uninstall() {
         fatal "Vessel installation not found"
     fi
 
-    $COMPOSE_CMD down -v --remove-orphans 2>/dev/null || true
+    # Stop Docker services
+    $COMPOSE_CMD "${COMPOSE_FILES[@]}" down -v --remove-orphans 2>/dev/null || true
+
+    # Stop VLM if running (best effort)
+    if pgrep -f "vlm.*--config" >/dev/null 2>&1; then
+        info "Stopping VLM..."
+        pkill -f "vlm.*--config" 2>/dev/null || true
+    fi
 
     if prompt_yes_no "Remove installation directory ($VESSEL_DIR)?" "n"; then
         cd ~
         rm -rf "$VESSEL_DIR"
-        success "Removed $VESSEL_DIR"
+        success "Removed $VESSEL_DIR (includes VLM binary, config, and data)"
+    else
+        if [[ -f "$VLM_BIN" ]] && prompt_yes_no "Remove VLM binary ($VLM_BIN)?" "n"; then
+            rm -f "$VLM_BIN" "${VLM_BIN}.old"
+            success "Removed VLM binary"
+        fi
     fi
 
     success "Vessel has been uninstalled"
@@ -366,11 +684,22 @@ do_update() {
         fatal "Vessel installation not found"
     fi
 
+    # Detect OS/arch for VLM update
+    detect_os
+    detect_arch
+
     info "Pulling latest changes..."
     git pull
 
     info "Rebuilding containers..."
-    $COMPOSE_CMD up -d --build
+    $COMPOSE_CMD "${COMPOSE_FILES[@]}" up -d --build
+
+    # Update VLM binary if enabled
+    if [[ "$VLM_ENABLED" == "true" ]]; then
+        info "Updating VLM..."
+        download_vlm
+        setup_vlm_env
+    fi
 
     success "Vessel has been updated"
 
@@ -387,6 +716,7 @@ main() {
     # Handle flags
     case "${1:-}" in
         --uninstall|-u)
+            detect_os  # Needed for COMPOSE_FILES
             do_uninstall
             ;;
         --update)
@@ -402,6 +732,8 @@ main() {
             echo ""
             echo "Environment variables:"
             echo "  VESSEL_DIR       Installation directory (default: ~/.vessel)"
+            echo "  VLM_ENABLED      Enable VLM installation (default: true)"
+            echo "  VLM_VERSION      VLM version to install (default: latest)"
             exit 0
             ;;
     esac
@@ -409,9 +741,18 @@ main() {
     print_banner
     check_prerequisites
     detect_os
+    detect_arch
     check_ollama
     clone_repository
     check_ports
+
+    # Install VLM components (before Docker services for .env)
+    if [[ "$VLM_ENABLED" == "true" ]]; then
+        download_vlm
+        ensure_vlm_config
+        setup_vlm_env
+    fi
+
     start_services
     wait_for_health
     prompt_pull_model

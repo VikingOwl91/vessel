@@ -4,11 +4,12 @@
 	 * Handles sending messages, streaming responses, and tool execution
 	 */
 
-	import { chatState, modelsState, conversationsState, toolsState, promptsState, toastState } from '$lib/stores';
+	import { chatState, modelsState, conversationsState, toolsState, promptsState, toastState, backendsState } from '$lib/stores';
 	import { resolveSystemPrompt } from '$lib/services/prompt-resolution.js';
 	import { serverConversationsState } from '$lib/stores/server-conversations.svelte';
 	import { streamingMetricsState } from '$lib/stores/streaming-metrics.svelte';
-	import { ollamaClient } from '$lib/ollama';
+	import { ollamaClient, type StreamChatCallbacks } from '$lib/ollama';
+	import { isVLMActive } from '$lib/services/chat-router.js';
 	import { addMessage as addStoredMessage, updateConversation, createConversation as createStoredConversation, saveAttachments } from '$lib/storage';
 	import type { FileAttachment } from '$lib/types/attachment.js';
 	import { fileAnalyzer, analyzeFilesInBatches, formatAnalyzedAttachment, type AnalysisResult } from '$lib/services/fileAnalyzer.js';
@@ -24,7 +25,7 @@
 		getKnowledgeBaseStats
 	} from '$lib/memory';
 	import { runToolCalls, formatToolResultsForChat, getFunctionModel, USE_FUNCTION_MODEL } from '$lib/tools';
-	import type { OllamaMessage, OllamaToolCall, OllamaToolDefinition } from '$lib/ollama';
+	import type { OllamaMessage, OllamaToolCall, OllamaToolDefinition, OllamaChatResponse } from '$lib/ollama';
 	import type { Conversation } from '$lib/types/conversation';
 	import VirtualMessageList from './VirtualMessageList.svelte';
 	import ChatInput from './ChatInput.svelte';
@@ -168,6 +169,71 @@
 				arguments: JSON.stringify(call.function.arguments)
 			}
 		}));
+	}
+
+	/**
+	 * Stream chat using the appropriate backend (VLM or Ollama).
+	 * Routes to VLM when it's the primary backend, otherwise uses Ollama.
+	 */
+	async function streamChatWithBackend(
+		options: {
+			model: string;
+			messages: OllamaMessage[];
+			tools?: OllamaToolDefinition[];
+			think?: boolean;
+			options?: Record<string, unknown>;
+		},
+		callbacks: StreamChatCallbacks,
+		signal?: AbortSignal
+	): Promise<void> {
+		if (isVLMActive()) {
+			// Use VLM backend
+			const client = backendsState.primary;
+			if (!client) throw new Error('No primary backend available');
+
+			await client.streamChatWithCallbacks(
+				{
+					model: options.model,
+					messages: options.messages.map((m) => ({
+						role: m.role as 'system' | 'user' | 'assistant' | 'tool',
+						content: m.content
+					})),
+					stream: true,
+					options: options.options
+						? {
+								temperature: options.options.temperature as number | undefined,
+								topP: options.options.top_p as number | undefined,
+								topK: options.options.top_k as number | undefined,
+								maxTokens: options.options.num_predict as number | undefined,
+								contextSize: options.options.num_ctx as number | undefined
+							}
+						: undefined
+				},
+				{
+					onToken: callbacks.onToken,
+					onComplete: (response) => {
+						callbacks.onComplete?.({
+							content: response.message.content,
+							response: {
+								model: response.model,
+								created_at: new Date().toISOString(),
+								message: {
+									role: response.message.role,
+									content: response.message.content
+								},
+								done: true,
+								done_reason: response.doneReason
+							} as OllamaChatResponse
+						});
+					},
+					onError: (error) => callbacks.onError?.(new Error(error.message))
+				},
+				signal
+			);
+		} else {
+			// Use Ollama client
+			await ollamaClient.streamChatWithCallbacks(options, callbacks, signal);
+		}
 	}
 
 	/**
@@ -687,12 +753,12 @@
 			let streamingThinking = '';
 			let thinkingClosed = false;
 
-			await ollamaClient.streamChatWithCallbacks(
+			await streamChatWithBackend(
 				{
 					model: chatModel,
 					messages,
-					tools,
-					think: useNativeThinking,
+					tools: isVLMActive() ? undefined : tools, // VLM doesn't support tools yet
+					think: isVLMActive() ? false : useNativeThinking, // VLM doesn't support thinking
 					options: settingsState.apiParameters
 				},
 				{
@@ -944,11 +1010,11 @@
 				? getFunctionModel(selectedModel)
 				: selectedModel;
 
-			await ollamaClient.streamChatWithCallbacks(
+			await streamChatWithBackend(
 				{
 					model: chatModel,
 					messages,
-					tools,
+					tools: isVLMActive() ? undefined : tools, // VLM doesn't support tools yet
 					options: settingsState.apiParameters
 				},
 				{

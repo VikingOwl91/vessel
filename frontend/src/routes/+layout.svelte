@@ -7,7 +7,7 @@
 	import '../app.css';
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
-	import { chatState, conversationsState, modelsState, uiState, promptsState, versionState } from '$lib/stores';
+	import { chatState, conversationsState, modelsState, uiState, promptsState, versionState, backendsState } from '$lib/stores';
 	import { getAllConversations } from '$lib/storage';
 	import { syncManager } from '$lib/backend';
 	import { keyboardShortcuts, getShortcuts } from '$lib/utils';
@@ -46,6 +46,9 @@
 		// Initialize version checker (update notifications)
 		versionState.initialize();
 
+		// Initialize LLM backends (multi-backend support)
+		backendsState.initialize();
+
 		// Initialize keyboard shortcuts
 		keyboardShortcuts.initialize();
 		registerKeyboardShortcuts();
@@ -70,6 +73,7 @@
 			uiState.destroy();
 			syncManager.destroy();
 			versionState.destroy();
+			backendsState.dispose();
 			keyboardShortcuts.destroy();
 		};
 	});

@@ -1,12 +1,13 @@
 name: vessel-dev
 
 # Development docker-compose - uses host network for direct Ollama access
+# Supports Ollama, llama.cpp (direct), and VLM (managed llama.cpp)
 services:
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile.dev
-    # Use host network to access localhost:11434 and backend directly
+    # Use host network to access localhost services directly
     network_mode: host
     volumes:
       - ./frontend:/app
@@ -14,6 +15,8 @@ services:
     environment:
       - OLLAMA_API_URL=http://localhost:11434
       - BACKEND_URL=http://localhost:9090
+      # llama.cpp server URL (start separately with: just llama-server)
+      - LLAMA_CPP_URL=http://localhost:8081
     depends_on:
       - backend
 
@@ -24,6 +27,15 @@ services:
     network_mode: host
     volumes:
       - ./backend/data:/app/data
+      - ~/.vessel/models:/models:ro
     environment:
       - GIN_MODE=release
+      - OLLAMA_URL=http://localhost:11434
+      - LLAMA_CPP_URL=http://localhost:8081
+      - MODELS_DIR=/models
+      # VLM (Vessel Llama Manager) - start with: just vlm
+      # Values can be overridden via .env file
+      - VLM_URL=${VLM_URL:-http://localhost:32789}
+      - VLM_ENABLED=${VLM_ENABLED:-true}
+      - VLM_TOKEN=${VLM_TOKEN:-}
     command: ["./server", "-port", "9090", "-db", "/app/data/vessel.db", "-ollama-url", "http://localhost:11434"]
