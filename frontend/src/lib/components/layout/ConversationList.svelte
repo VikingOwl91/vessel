@@ -6,6 +6,7 @@
 	import { conversationsState, chatState, projectsState } from '$lib/stores';
 	import ConversationItem from './ConversationItem.svelte';
 	import ProjectFolder from './ProjectFolder.svelte';
+	import type { Conversation } from '$lib/types/conversation.js';
 
 	interface Props {
 		onEditProject?: (projectId: string) => void;
@@ -24,6 +25,15 @@
 	// Derived: Check if there are any project folders or ungrouped conversations
 	const hasAnyContent = $derived.by(() => {
 		return projectsState.projects.length > 0 || ungroupedConversations.length > 0;
+	});
+
+	// Derived: Map of project ID to conversations (cached to avoid repeated calls)
+	const projectConversationsMap = $derived.by(() => {
+		const map = new Map<string, Conversation[]>();
+		for (const project of projectsState.projects) {
+			map.set(project.id, conversationsState.forProject(project.id));
+		}
+		return map;
 	});
 </script>
 
@@ -70,7 +80,7 @@
 					{#each projectsState.sortedProjects as project (project.id)}
 						<ProjectFolder
 							{project}
-							conversations={conversationsState.forProject(project.id)}
+							conversations={projectConversationsMap.get(project.id) ?? []}
 							{onEditProject}
 						/>
 					{/each}
