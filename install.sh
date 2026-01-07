@@ -104,6 +104,80 @@ prompt_yes_no() {
 }
 
 # =============================================================================
+# Version & Release Notes
+# =============================================================================
+
+GITHUB_RELEASES_URL="https://api.github.com/repos/VikingOwl91/vessel/releases"
+GITHUB_RELEASES_PAGE="https://github.com/VikingOwl91/vessel/releases"
+
+get_installed_version() {
+    if [[ -f "backend/cmd/server/main.go" ]]; then
+        grep -oP 'Version\s*=\s*"\K[^"]+' backend/cmd/server/main.go 2>/dev/null || echo "unknown"
+    else
+        echo "unknown"
+    fi
+}
+
+version_gt() {
+    # Returns 0 (true) if $1 > $2 using version sort
+    [[ "$(printf '%s\n' "$1" "$2" | sort -V | head -n1)" != "$1" ]]
+}
+
+show_release_notes() {
+    local old_version="$1"
+    local new_version="$2"
+
+    # Skip if versions are the same or unknown
+    if [[ "$old_version" == "$new_version" ]] || [[ "$old_version" == "unknown" ]]; then
+        return
+    fi
+
+    # Check if jq is available
+    if ! check_command jq; then
+        echo ""
+        echo -e "${CYAN}📋 What's New:${NC}"
+        echo -e "   View release notes at: ${CYAN}${GITHUB_RELEASES_PAGE}${NC}"
+        echo ""
+        return
+    fi
+
+    # Fetch releases from GitHub API
+    local releases
+    releases=$(curl -s --connect-timeout 5 "$GITHUB_RELEASES_URL" 2>/dev/null) || {
+        return
+    }
+
+    # Check if we got valid JSON
+    if ! echo "$releases" | jq -e '.' &>/dev/null; then
+        return
+    fi
+
+    # Filter releases between old and new version, format output
+    local notes
+    notes=$(echo "$releases" | jq -r --arg old "$old_version" --arg new "$new_version" '
+        .[] |
+        select(.draft == false and .prerelease == false) |
+        (.tag_name | ltrimstr("v")) as $ver |
+        select(
+            ($ver != $old) and
+            ([$ver, $old] | sort_by(split(".") | map(tonumber? // 0)) | .[0] == $old) and
+            ([$ver, $new] | sort_by(split(".") | map(tonumber? // 0)) | .[1] == $new or $ver == $new)
+        ) |
+        "───────────────────────────────────────────────────────────\n" +
+        "📦 " + .tag_name + " - " + (.name // "Release") + "\n" +
+        "🔗 " + .html_url + "\n\n" +
+        ((.body // "No release notes") | split("\n")[0:5] | join("\n"))
+    ' 2>/dev/null)
+
+    if [[ -n "$notes" ]]; then
+        echo ""
+        echo -e "${CYAN}📋 What's New (${old_version} → ${new_version}):${NC}"
+        echo -e "$notes"
+        echo ""
+    fi
+}
+
+# =============================================================================
 # Prerequisite Checks
 # =============================================================================
 
@@ -366,6 +440,10 @@ do_update() {
         fatal "Vessel installation not found"
     fi
 
+    # Capture current version before updating
+    local old_version
+    old_version=$(get_installed_version)
+
     info "Pulling latest changes..."
     git pull
 
@@ -375,6 +453,12 @@ do_update() {
     success "Vessel has been updated"
 
     wait_for_health
+
+    # Get new version and show release notes
+    local new_version
+    new_version=$(get_installed_version)
+    show_release_notes "$old_version" "$new_version"
+
     print_success
     exit 0
 }

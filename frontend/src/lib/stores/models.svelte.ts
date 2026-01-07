@@ -23,12 +23,10 @@ export const CAPABILITY_INFO: Record<string, { label: string; icon: string; colo
 };
 
 /**
- * Middleware models that should NOT appear in the chat model selector
- * These are special-purpose models for embeddings, function routing, etc.
+ * Embedding model patterns for semantic search/RAG
  */
-const MIDDLEWARE_MODEL_PATTERNS = [
+const EMBEDDING_MODEL_PATTERNS = [
 	'embeddinggemma',
-	'functiongemma',
 	'nomic-embed',
 	'mxbai-embed',
 	'all-minilm',
@@ -36,13 +34,28 @@ const MIDDLEWARE_MODEL_PATTERNS = [
 	'bge-',        // BGE embedding models
 	'e5-',         // E5 embedding models
 	'gte-',        // GTE embedding models
-	'embed'        // Generic embed pattern (catches most embedding models)
+	'embed'        // Generic embed pattern
+];
+
+/**
+ * Middleware models that should NOT appear in the chat model selector
+ * These are special-purpose models for embeddings, function routing, etc.
+ */
+const MIDDLEWARE_MODEL_PATTERNS = [
+	...EMBEDDING_MODEL_PATTERNS,
+	'functiongemma'  // Function routing model
 ];
 
 /** Check if a model is a middleware/utility model (not for direct chat) */
 function isMiddlewareModel(model: OllamaModel): boolean {
 	const name = model.name.toLowerCase();
 	return MIDDLEWARE_MODEL_PATTERNS.some((pattern) => name.includes(pattern));
+}
+
+/** Check if a model is an embedding model */
+function isEmbeddingModel(model: OllamaModel): boolean {
+	const name = model.name.toLowerCase();
+	return EMBEDDING_MODEL_PATTERNS.some((pattern) => name.includes(pattern));
 }
 
 /** Check if a model supports vision */
@@ -137,6 +150,16 @@ export class ModelsState {
 	// Derived: Vision-capable models
 	visionModels = $derived.by(() => {
 		return this.available.filter(isVisionModel);
+	});
+
+	// Derived: Embedding models available for RAG/semantic search
+	embeddingModels = $derived.by(() => {
+		return this.available.filter(isEmbeddingModel);
+	});
+
+	// Derived: Check if any embedding model is available
+	hasEmbeddingModel = $derived.by(() => {
+		return this.embeddingModels.length > 0;
 	});
 
 	// Derived: Check if selected model supports vision

@@ -75,9 +75,25 @@
 						<option value={model}>{model}</option>
 					{/each}
 				</select>
-				<p class="mt-2 text-xs text-theme-muted">
-					Note: The model must be installed in Ollama. Run <code class="bg-theme-tertiary px-1 rounded">ollama pull {settingsState.embeddingModel}</code> if not installed.
-				</p>
+				{#if !modelsState.hasEmbeddingModel}
+					<p class="mt-2 text-xs text-amber-400">
+						No embedding model installed. Run <code class="bg-theme-tertiary px-1 rounded text-theme-muted">ollama pull {settingsState.embeddingModel}</code> to enable semantic search.
+					</p>
+				{:else}
+					{@const selectedInstalled = modelsState.embeddingModels.some(m => m.name.includes(settingsState.embeddingModel.split(':')[0]))}
+					{#if !selectedInstalled}
+						<p class="mt-2 text-xs text-amber-400">
+							Selected model not installed. Run <code class="bg-theme-tertiary px-1 rounded text-theme-muted">ollama pull {settingsState.embeddingModel}</code> or select an installed model.
+						</p>
+						<p class="mt-1 text-xs text-theme-muted">
+							Installed: {modelsState.embeddingModels.map(m => m.name).join(', ')}
+						</p>
+					{:else}
+						<p class="mt-2 text-xs text-emerald-400">
+							Model installed and ready.
+						</p>
+					{/if}
+				{/if}
 			</div>
 
 			<!-- Auto-Compact Toggle -->

@@ -13,7 +13,7 @@
 		DEFAULT_EMBEDDING_MODEL
 	} from '$lib/memory';
 	import type { StoredDocument } from '$lib/storage/db';
-	import { toastState } from '$lib/stores';
+	import { toastState, modelsState } from '$lib/stores';
 
 	let documents = $state<StoredDocument[]>([]);
 	let stats = $state({ documentCount: 0, chunkCount: 0, totalTokens: 0 });
@@ -258,9 +258,18 @@
 			Documents are split into chunks and converted to embeddings. When you ask a question,
 			relevant chunks are found by similarity search and included in the AI's context.
 		</p>
-		<p class="mt-2 text-sm text-theme-muted">
-			<strong class="text-theme-secondary">Note:</strong> Requires an embedding model to be installed
-			in Ollama (e.g., <code class="rounded bg-theme-tertiary px-1">ollama pull nomic-embed-text</code>).
-		</p>
+		{#if !modelsState.hasEmbeddingModel}
+			<p class="mt-2 text-sm text-amber-400">
+				<strong>No embedding model found.</strong> Install one to use the knowledge base:
+				<code class="ml-1 rounded bg-theme-tertiary px-1 text-theme-muted">ollama pull nomic-embed-text</code>
+			</p>
+		{:else}
+			<p class="mt-2 text-sm text-emerald-400">
+				Embedding model available: {modelsState.embeddingModels[0]?.name}
+				{#if modelsState.embeddingModels.length > 1}
+					<span class="text-theme-muted">(+{modelsState.embeddingModels.length - 1} more)</span>
+				{/if}
+			</p>
+		{/if}
 	</section>
 </div>
