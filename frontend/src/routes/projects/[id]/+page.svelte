@@ -434,8 +434,7 @@
 						<p class="text-sm text-theme-muted">Embedding Model</p>
 						<select
 							bind:value={selectedEmbeddingModel}
-							disabled={isUploading}
-							class="rounded-md border border-theme bg-theme-tertiary px-3 py-1.5 text-sm text-theme-primary focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 disabled:opacity-50"
+							class="rounded-md border border-theme bg-theme-tertiary px-3 py-1.5 text-sm text-theme-primary focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
 						>
 							{#each EMBEDDING_MODELS as model}
 								<option value={model}>{model}</option>
