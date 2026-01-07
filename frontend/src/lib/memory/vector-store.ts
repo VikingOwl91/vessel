@@ -92,7 +92,8 @@ export async function addDocument(
 		updatedAt: now,
 		chunkCount: storedChunks.length,
 		embeddingModel,
-		projectId: projectId ?? null
+		projectId: projectId ?? null,
+		embeddingStatus: 'ready'
 	};
 
 	// Store in database
@@ -100,6 +101,117 @@ export async function addDocument(
 		await db.documents.add(document);
 		await db.chunks.bulkAdd(storedChunks);
 	});
+
+	return document;
+}
+
+/** Options for async document upload */
+export interface AddDocumentAsyncOptions extends AddDocumentOptions {
+	/** Callback when embedding generation completes */
+	onComplete?: (doc: StoredDocument) => void;
+	/** Callback when embedding generation fails */
+	onError?: (error: Error) => void;
+}
+
+/**
+ * Add a document asynchronously - stores immediately, generates embeddings in background
+ * Returns immediately with the document in 'pending' state
+ */
+export async function addDocumentAsync(
+	name: string,
+	content: string,
+	mimeType: string,
+	options: AddDocumentAsyncOptions = {}
+): Promise<StoredDocument> {
+	const {
+		chunkOptions,
+		embeddingModel = DEFAULT_EMBEDDING_MODEL,
+		onProgress,
+		onComplete,
+		onError,
+		projectId
+	} = options;
+
+	const documentId = crypto.randomUUID();
+	const now = Date.now();
+
+	// Chunk the content
+	const textChunks = chunkText(content, documentId, chunkOptions);
+
+	if (textChunks.length === 0) {
+		throw new Error('Document produced no chunks');
+	}
+
+	// Create document record immediately (without embeddings)
+	const document: StoredDocument = {
+		id: documentId,
+		name,
+		mimeType,
+		size: content.length,
+		createdAt: now,
+		updatedAt: now,
+		chunkCount: textChunks.length,
+		embeddingModel,
+		projectId: projectId ?? null,
+		embeddingStatus: 'pending'
+	};
+
+	// Store document immediately
+	await db.documents.add(document);
+
+	// Generate embeddings in background (non-blocking)
+	setTimeout(async () => {
+		try {
+			// Update status to processing
+			await db.documents.update(documentId, { embeddingStatus: 'processing' });
+
+			const chunkContents = textChunks.map(c => c.content);
+			const embeddings: number[][] = [];
+
+			// Process in batches with progress
+			const BATCH_SIZE = 5;
+			for (let i = 0; i < chunkContents.length; i += BATCH_SIZE) {
+				const batch = chunkContents.slice(i, i + BATCH_SIZE);
+				const batchEmbeddings = await generateEmbeddings(batch, embeddingModel);
+				embeddings.push(...batchEmbeddings);
+
+				if (onProgress) {
+					onProgress(Math.min(i + BATCH_SIZE, chunkContents.length), chunkContents.length);
+				}
+			}
+
+			// Create stored chunks with embeddings
+			const storedChunks: StoredChunk[] = textChunks.map((chunk, index) => ({
+				id: chunk.id,
+				documentId,
+				content: chunk.content,
+				embedding: embeddings[index],
+				startIndex: chunk.startIndex,
+				endIndex: chunk.endIndex,
+				tokenCount: estimateChunkTokens(chunk.content)
+			}));
+
+			// Store chunks and update document status
+			await db.transaction('rw', [db.documents, db.chunks], async () => {
+				await db.chunks.bulkAdd(storedChunks);
+				await db.documents.update(documentId, {
+					embeddingStatus: 'ready',
+					updatedAt: Date.now()
+				});
+			});
+
+			const updatedDoc = await db.documents.get(documentId);
+			if (updatedDoc && onComplete) {
+				onComplete(updatedDoc);
+			}
+		} catch (error) {
+			console.error('Failed to generate embeddings:', error);
+			await db.documents.update(documentId, { embeddingStatus: 'failed' });
+			if (onError) {
+				onError(error instanceof Error ? error : new Error(String(error)));
+			}
+		}
+	}, 0);
 
 	return document;
 }

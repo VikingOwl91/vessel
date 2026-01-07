@@ -157,6 +157,8 @@ export interface StoredDocument {
 	embeddingModel: string;
 	/** Optional project ID - if set, document is project-scoped */
 	projectId?: string | null;
+	/** Embedding generation status: 'pending' | 'processing' | 'ready' | 'failed' */
+	embeddingStatus?: 'pending' | 'processing' | 'ready' | 'failed';
 }
 
 /**

@@ -11,9 +11,10 @@
 	import { getProjectStats, getProjectLinks, type ProjectLink } from '$lib/storage/projects.js';
 	import {
 		listDocuments,
-		addDocument,
+		addDocumentAsync,
 		deleteDocument,
-		DEFAULT_EMBEDDING_MODEL
+		DEFAULT_EMBEDDING_MODEL,
+		EMBEDDING_MODELS
 	} from '$lib/memory';
 	import type { StoredDocument } from '$lib/storage/db';
 	import ProjectModal from '$lib/components/projects/ProjectModal.svelte';
@@ -40,7 +41,7 @@
 	let links = $state<ProjectLink[]>([]);
 	let documents = $state<StoredDocument[]>([]);
 	let isLoadingDocs = $state(false);
-	let isUploading = $state(false);
+	let selectedEmbeddingModel = $state(DEFAULT_EMBEDDING_MODEL);
 	let activeTab = $state<'chats' | 'files' | 'links'>('chats');
 	let fileInput: HTMLInputElement;
 	let dragOver = $state(false);
@@ -186,8 +187,6 @@
 			return;
 		}
 
-		isUploading = true;
-
 		for (const file of files) {
 			try {
 				const content = await file.text();
@@ -196,13 +195,21 @@
 					continue;
 				}
 
-				// Add document with projectId
-				await addDocument(file.name, content, file.type || 'text/plain', {
-					embeddingModel: DEFAULT_EMBEDDING_MODEL,
-					projectId: projectId
+				// Add document async - stores immediately, embeds in background
+				await addDocumentAsync(file.name, content, file.type || 'text/plain', {
+					embeddingModel: selectedEmbeddingModel,
+					projectId: projectId,
+					onComplete: (doc) => {
+						toastState.success(`Embeddings ready for "${doc.name}"`);
+						loadProjectData(); // Refresh to show updated status
+					},
+					onError: (error) => {
+						toastState.error(`Embedding failed for "${file.name}": ${error.message}`);
+						loadProjectData(); // Refresh to show failed status
+					}
 				});
 
-				toastState.success(`Added "${file.name}" to project`);
+				toastState.info(`Added "${file.name}" - generating embeddings...`);
 			} catch (error) {
 				console.error(`Failed to process ${file.name}:`, error);
 				const message = error instanceof Error ? error.message : 'Unknown error';
@@ -210,12 +217,8 @@
 			}
 		}
 
-		try {
-			await loadProjectData();
-		} catch (err) {
-			console.error('Failed to reload project data:', err);
-		}
-		isUploading = false;
+		// Refresh immediately to show pending documents
+		await loadProjectData();
 	}
 
 	async function handleDeleteDocument(doc: StoredDocument) {
@@ -426,6 +429,20 @@
 						</div>
 					{/if}
 				{:else if activeTab === 'files'}
+					<!-- Embedding Model Selector -->
+					<div class="mb-4 flex items-center justify-between">
+						<p class="text-sm text-theme-muted">Embedding Model</p>
+						<select
+							bind:value={selectedEmbeddingModel}
+							disabled={isUploading}
+							class="rounded-md border border-theme bg-theme-tertiary px-3 py-1.5 text-sm text-theme-primary focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 disabled:opacity-50"
+						>
+							{#each EMBEDDING_MODELS as model}
+								<option value={model}>{model}</option>
+							{/each}
+						</select>
+					</div>
+
 					<!-- File Upload Zone -->
 					<div
 						class="mb-4 rounded-xl border-2 border-dashed border-theme p-8 text-center transition-colors {dragOver ? 'border-emerald-500 bg-emerald-500/10' : 'hover:border-emerald-500/50'}"
@@ -445,12 +462,8 @@
 							<path stroke-linecap="round" stroke-linejoin="round" d="M12 16.5V9.75m0 0 3 3m-3-3-3 3M6.75 19.5a4.5 4.5 0 0 1-1.41-8.775 5.25 5.25 0 0 1 10.233-2.33 3 3 0 0 1 3.758 3.848A3.752 3.752 0 0 1 18 19.5H6.75Z" />
 						</svg>
 						<p class="text-sm text-theme-muted">
-							{#if isUploading}
-								Uploading files...
-							{:else}
-								Drag & drop files here, or
-								<button type="button" onclick={() => fileInput.click()} class="text-emerald-500 hover:text-emerald-400">browse</button>
-							{/if}
+							Drag & drop files here, or
+							<button type="button" onclick={() => fileInput.click()} class="text-emerald-500 hover:text-emerald-400">browse</button>
 						</p>
 						<p class="mt-1 text-xs text-theme-muted">
 							Text files, code, markdown, JSON, etc.
@@ -467,13 +480,31 @@
 							{#each documents as doc (doc.id)}
 								<div class="flex items-center justify-between rounded-lg border border-theme bg-theme-secondary p-3">
 									<div class="flex items-center gap-3">
-										<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-theme-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-											<path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
-										</svg>
+										<!-- Status indicator -->
+										{#if doc.embeddingStatus === 'pending' || doc.embeddingStatus === 'processing'}
+											<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 animate-spin text-yellow-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+												<path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" />
+											</svg>
+										{:else if doc.embeddingStatus === 'failed'}
+											<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+												<path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z" />
+											</svg>
+										{:else}
+											<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-theme-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+												<path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
+											</svg>
+										{/if}
 										<div>
 											<p class="text-sm font-medium text-theme-primary">{doc.name}</p>
 											<p class="text-xs text-theme-muted">
 												{formatSize(doc.size)}
+												{#if doc.embeddingStatus === 'pending'}
+													<span class="ml-2 text-yellow-500">• Queued</span>
+												{:else if doc.embeddingStatus === 'processing'}
+													<span class="ml-2 text-yellow-500">• Generating embeddings...</span>
+												{:else if doc.embeddingStatus === 'failed'}
+													<span class="ml-2 text-red-500">• Embedding failed</span>
+												{/if}
 											</p>
 										</div>
 									</div>

@@ -69,6 +69,7 @@ export {
 // Vector store
 export {
 	addDocument,
+	addDocumentAsync,
 	searchSimilar,
 	listDocuments,
 	getDocument,
@@ -77,5 +78,6 @@ export {
 	getKnowledgeBaseStats,
 	formatResultsAsContext,
 	type SearchResult,
-	type AddDocumentOptions
+	type AddDocumentOptions,
+	type AddDocumentAsyncOptions
 } from './vector-store.js';
