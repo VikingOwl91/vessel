@@ -4,6 +4,7 @@
  */
 
 import type { Conversation } from '$lib/types/conversation.js';
+import { pinConversation, archiveConversation } from '$lib/storage/conversations.js';
 
 /** Date group labels */
 type DateGroup = 'Today' | 'Yesterday' | 'Previous 7 Days' | 'Previous 30 Days' | 'Older';
@@ -161,23 +162,43 @@ export class ConversationsState {
 
 	/**
 	 * Toggle pin status of a conversation
+	 * Persists to IndexedDB and queues for backend sync
 	 * @param id The conversation ID
 	 */
-	pin(id: string): void {
+	async pin(id: string): Promise<void> {
 		const conversation = this.items.find((c) => c.id === id);
 		if (conversation) {
+			// Update in-memory state immediately for responsive UI
 			this.update(id, { isPinned: !conversation.isPinned });
+
+			// Persist to IndexedDB and queue for sync
+			const result = await pinConversation(id);
+			if (!result.success) {
+				// Revert on failure
+				this.update(id, { isPinned: conversation.isPinned });
+				console.error('Failed to persist pin state:', result.error);
+			}
 		}
 	}
 
 	/**
 	 * Toggle archive status of a conversation
+	 * Persists to IndexedDB and queues for backend sync
 	 * @param id The conversation ID
 	 */
-	archive(id: string): void {
+	async archive(id: string): Promise<void> {
 		const conversation = this.items.find((c) => c.id === id);
 		if (conversation) {
+			// Update in-memory state immediately for responsive UI
 			this.update(id, { isArchived: !conversation.isArchived });
+
+			// Persist to IndexedDB and queue for sync
+			const result = await archiveConversation(id);
+			if (!result.success) {
+				// Revert on failure
+				this.update(id, { isArchived: conversation.isArchived });
+				console.error('Failed to persist archive state:', result.error);
+			}
 		}
 	}
 

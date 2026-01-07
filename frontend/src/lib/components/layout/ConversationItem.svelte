@@ -98,14 +98,18 @@
 	<!-- Chat icon -->
 	<div class="mt-0.5 shrink-0">
 		{#if conversation.isPinned}
-			<!-- Pin icon for pinned conversations -->
+			<!-- Bookmark icon for pinned conversations -->
 			<svg
 				xmlns="http://www.w3.org/2000/svg"
 				class="h-4 w-4 text-emerald-500"
-				viewBox="0 0 20 20"
+				viewBox="0 0 24 24"
 				fill="currentColor"
 			>
-				<path d="M10.75 4.75a.75.75 0 0 0-1.5 0v4.5h-4.5a.75.75 0 0 0 0 1.5h4.5v4.5a.75.75 0 0 0 1.5 0v-4.5h4.5a.75.75 0 0 0 0-1.5h-4.5v-4.5Z" />
+				<path
+					fill-rule="evenodd"
+					d="M6.32 2.577a49.255 49.255 0 0 1 11.36 0c1.497.174 2.57 1.46 2.57 2.93V21a.75.75 0 0 1-1.085.67L12 18.089l-7.165 3.583A.75.75 0 0 1 3.75 21V5.507c0-1.47 1.073-2.756 2.57-2.93Z"
+					clip-rule="evenodd"
+				/>
 			</svg>
 		{:else}
 			<!-- Regular chat bubble -->
@@ -152,37 +156,24 @@
 		<button
 			type="button"
 			onclick={handlePin}
-			class="rounded p-1 text-theme-muted transition-colors hover:bg-theme-tertiary hover:text-theme-primary"
+			class="rounded p-1 transition-colors hover:bg-theme-tertiary {conversation.isPinned ? 'text-emerald-500 hover:text-emerald-400' : 'text-theme-muted hover:text-theme-primary'}"
 			aria-label={conversation.isPinned ? 'Unpin conversation' : 'Pin conversation'}
 			title={conversation.isPinned ? 'Unpin' : 'Pin'}
 		>
-			{#if conversation.isPinned}
-				<!-- Unpin icon (filled) -->
-				<svg
-					xmlns="http://www.w3.org/2000/svg"
-					class="h-4 w-4"
-					viewBox="0 0 20 20"
-					fill="currentColor"
-				>
-					<path d="M8.75 10.25a.75.75 0 0 0 0 1.5h2.5a.75.75 0 0 0 0-1.5h-2.5Z" />
-				</svg>
-			{:else}
-				<!-- Pin icon (outline) -->
-				<svg
-					xmlns="http://www.w3.org/2000/svg"
-					class="h-4 w-4"
-					fill="none"
-					viewBox="0 0 24 24"
-					stroke="currentColor"
-					stroke-width="2"
-				>
-					<path
-						stroke-linecap="round"
-						stroke-linejoin="round"
-						d="M3 6.75A.75.75 0 0 1 3.75 6h16.5a.75.75 0 0 1 0 1.5H3.75A.75.75 0 0 1 3 6.75ZM3 12a.75.75 0 0 1 .75-.75h16.5a.75.75 0 0 1 0 1.5H3.75A.75.75 0 0 1 3 12Zm0 5.25a.75.75 0 0 1 .75-.75h16.5a.75.75 0 0 1 0 1.5H3.75a.75.75 0 0 1-.75-.75Z"
-					/>
-				</svg>
-			{/if}
+			<svg
+				xmlns="http://www.w3.org/2000/svg"
+				class="h-4 w-4"
+				fill={conversation.isPinned ? 'currentColor' : 'none'}
+				viewBox="0 0 24 24"
+				stroke="currentColor"
+				stroke-width="1.5"
+			>
+				<path
+					stroke-linecap="round"
+					stroke-linejoin="round"
+					d="M17.593 3.322c1.1.128 1.907 1.077 1.907 2.185V21L12 17.25 4.5 21V5.507c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0 1 11.186 0Z"
+				/>
+			</svg>
 		</button>
 
 		<!-- Move to project button -->
