@@ -41,20 +41,35 @@ If you want a **small, focused UI for local Ollama usage** → Vessel is built f
 ## Features
 
 ### Chat
-- Real-time streaming responses
-- Message editing with branch navigation
+- Real-time streaming responses with token metrics
+- **Message branching** — edit any message to create alternative conversation paths
 - Markdown rendering with syntax highlighting
+- **Thinking mode** — native support for reasoning models (DeepSeek-R1, etc.)
 - Dark/Light themes
+
+### Projects & Organization
+- **Projects** — group related conversations together
+- Pin and archive conversations
+- Smart title generation from conversation content
+- **Global search** — semantic, title, and content search across all chats
+
+### Knowledge Base (RAG)
+- Upload documents (text, markdown, PDF) to build a knowledge base
+- **Semantic search** using embeddings for context-aware retrieval
+- Project-specific or global knowledge bases
+- Automatic context injection into conversations
 
 ### Tools
 - **5 built-in tools**: web search, URL fetching, calculator, location, time
 - **Custom tools**: Create your own in JavaScript, Python, or HTTP
+- Agentic tool calling with chain-of-thought reasoning
 - Test tools before saving with the built-in testing panel
 
 ### Models
 - Browse and pull models from ollama.com
 - Create custom models with embedded system prompts
-- Track model updates
+- **Per-model parameters** — customize temperature, context size, top_k/top_p
+- Track model updates and capability detection (vision, tools, code)
 
 ### Prompts
 - Save and organize system prompts
@@ -145,6 +160,9 @@ Full documentation is available on the **[GitHub Wiki](https://github.com/Viking
 | Guide | Description |
 |-------|-------------|
 | [Getting Started](https://github.com/VikingOwl91/vessel/wiki/Getting-Started) | Installation and configuration |
+| [Projects](https://github.com/VikingOwl91/vessel/wiki/Projects) | Organize conversations into projects |
+| [Knowledge Base](https://github.com/VikingOwl91/vessel/wiki/Knowledge-Base) | RAG with document upload and semantic search |
+| [Search](https://github.com/VikingOwl91/vessel/wiki/Search) | Semantic and content search across chats |
 | [Custom Tools](https://github.com/VikingOwl91/vessel/wiki/Custom-Tools) | Create JavaScript, Python, or HTTP tools |
 | [System Prompts](https://github.com/VikingOwl91/vessel/wiki/System-Prompts) | Manage prompts with model defaults |
 | [Custom Models](https://github.com/VikingOwl91/vessel/wiki/Custom-Models) | Create models with embedded prompts |
@@ -164,6 +182,11 @@ Vessel prioritizes **usability and simplicity** over feature breadth.
 - [x] Custom tools (JavaScript, Python, HTTP)
 - [x] System prompt library with model-specific defaults
 - [x] Custom model creation with embedded prompts
+- [x] Projects for conversation organization
+- [x] Knowledge base with RAG (semantic retrieval)
+- [x] Global search (semantic, title, content)
+- [x] Thinking mode for reasoning models
+- [x] Message branching and conversation trees
 
 **Planned:**
 - [ ] Keyboard-first workflows
