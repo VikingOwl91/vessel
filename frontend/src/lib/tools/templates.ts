@@ -707,7 +707,20 @@ switch (action) {
       return { found: false, key };
     }
 
-    return { error: 'Provide key and/or category' };
+    // No key or category provided - return all memories (like list)
+    const allMemories = {};
+    for (const cat in memory) {
+      allMemories[cat] = Object.entries(memory[cat]).map(([k, data]) => ({
+        key: k,
+        value: data.value,
+        stored: data.stored
+      }));
+    }
+    return {
+      memories: allMemories,
+      totalCategories: Object.keys(memory).length,
+      totalEntries: Object.values(memory).reduce((sum, cat) => sum + Object.keys(cat).length, 0)
+    };
   }
 
   case 'list': {
