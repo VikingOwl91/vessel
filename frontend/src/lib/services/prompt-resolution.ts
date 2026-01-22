@@ -20,6 +20,7 @@ import type { OllamaCapability } from '$lib/ollama/types.js';
 export type PromptSource =
 	| 'per-conversation'
 	| 'new-chat-selection'
+	| 'agent'
 	| 'model-mapping'
 	| 'model-embedded'
 	| 'capability-match'
@@ -72,21 +73,26 @@ function findCapabilityMatchedPrompt(
  * Priority order:
  * 1. Per-conversation prompt (explicit user override)
  * 2. New chat prompt selection (before conversation exists)
- * 3. Model-prompt mapping (user configured default for model)
- * 4. Model-embedded prompt (from Ollama Modelfile)
- * 5. Capability-matched prompt
- * 6. Global active prompt
- * 7. No prompt
+ * 3. Agent prompt (if agent is specified and has a promptId)
+ * 4. Model-prompt mapping (user configured default for model)
+ * 5. Model-embedded prompt (from Ollama Modelfile)
+ * 6. Capability-matched prompt
+ * 7. Global active prompt
+ * 8. No prompt
  *
  * @param modelName - Ollama model name (e.g., "llama3.2:8b")
  * @param conversationPromptId - Per-conversation prompt ID (if set)
  * @param newChatPromptId - New chat selection (before conversation created)
+ * @param agentPromptId - Agent's prompt ID (if agent is selected)
+ * @param agentName - Agent's name for display (optional)
  * @returns Resolved prompt with content and source
  */
 export async function resolveSystemPrompt(
 	modelName: string,
 	conversationPromptId?: string | null,
-	newChatPromptId?: string | null
+	newChatPromptId?: string | null,
+	agentPromptId?: string | null,
+	agentName?: string
 ): Promise<ResolvedPrompt> {
 	// Ensure stores are loaded
 	await promptsState.ready();
@@ -116,7 +122,19 @@ export async function resolveSystemPrompt(
 		}
 	}
 
-	// 3. User-configured model-prompt mapping
+	// 3. Agent prompt (if agent is specified and has a promptId)
+	if (agentPromptId) {
+		const prompt = promptsState.get(agentPromptId);
+		if (prompt) {
+			return {
+				content: prompt.content,
+				source: 'agent',
+				promptName: agentName ? `${agentName}: ${prompt.name}` : prompt.name
+			};
+		}
+	}
+
+	// 4. User-configured model-prompt mapping
 	const mappedPromptId = modelPromptMappingsState.getMapping(modelName);
 	if (mappedPromptId) {
 		const prompt = promptsState.get(mappedPromptId);
@@ -129,7 +147,7 @@ export async function resolveSystemPrompt(
 		}
 	}
 
-	// 4. Model-embedded prompt (from Ollama Modelfile SYSTEM directive)
+	// 5. Model-embedded prompt (from Ollama Modelfile SYSTEM directive)
 	const modelInfo = await modelInfoService.getModelInfo(modelName);
 	if (modelInfo.systemPrompt) {
 		return {
@@ -139,7 +157,7 @@ export async function resolveSystemPrompt(
 		};
 	}
 
-	// 5. Capability-matched prompt
+	// 6. Capability-matched prompt
 	if (modelInfo.capabilities.length > 0) {
 		const capabilityMatch = findCapabilityMatchedPrompt(modelInfo.capabilities, promptsState.prompts);
 		if (capabilityMatch) {
@@ -152,7 +170,7 @@ export async function resolveSystemPrompt(
 		}
 	}
 
-	// 6. Global active prompt
+	// 7. Global active prompt
 	const activePrompt = promptsState.activePrompt;
 	if (activePrompt) {
 		return {
@@ -162,7 +180,7 @@ export async function resolveSystemPrompt(
 		};
 	}
 
-	// 7. No prompt
+	// 8. No prompt
 	return {
 		content: '',
 		source: 'none'
@@ -181,6 +199,8 @@ export function getPromptSourceLabel(source: PromptSource): string {
 			return 'Custom (this chat)';
 		case 'new-chat-selection':
 			return 'Selected prompt';
+		case 'agent':
+			return 'Agent prompt';
 		case 'model-mapping':
 			return 'Model default';
 		case 'model-embedded':

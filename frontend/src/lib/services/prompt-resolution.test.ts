@@ -11,6 +11,7 @@ describe('getPromptSourceLabel', () => {
 	const testCases: Array<{ source: PromptSource; expected: string }> = [
 		{ source: 'per-conversation', expected: 'Custom (this chat)' },
 		{ source: 'new-chat-selection', expected: 'Selected prompt' },
+		{ source: 'agent', expected: 'Agent prompt' },
 		{ source: 'model-mapping', expected: 'Model default' },
 		{ source: 'model-embedded', expected: 'Model built-in' },
 		{ source: 'capability-match', expected: 'Auto-matched' },
@@ -29,6 +30,7 @@ describe('getPromptSourceLabel', () => {
 		const allSources: PromptSource[] = [
 			'per-conversation',
 			'new-chat-selection',
+			'agent',
 			'model-mapping',
 			'model-embedded',
 			'capability-match',

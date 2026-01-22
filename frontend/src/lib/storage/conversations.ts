@@ -23,6 +23,7 @@ function toDomainConversation(stored: StoredConversation): Conversation {
 		messageCount: stored.messageCount,
 		systemPromptId: stored.systemPromptId ?? null,
 		projectId: stored.projectId ?? null,
+		agentId: stored.agentId ?? null,
 		summary: stored.summary ?? null,
 		summaryUpdatedAt: stored.summaryUpdatedAt ? new Date(stored.summaryUpdatedAt) : null
 	};
@@ -294,6 +295,16 @@ export async function updateSystemPrompt(
 	systemPromptId: string | null
 ): Promise<StorageResult<Conversation>> {
 	return updateConversation(conversationId, { systemPromptId });
+}
+
+/**
+ * Update the agent for a conversation
+ */
+export async function updateAgentId(
+	conversationId: string,
+	agentId: string | null
+): Promise<StorageResult<Conversation>> {
+	return updateConversation(conversationId, { agentId });
 }
 
 /**

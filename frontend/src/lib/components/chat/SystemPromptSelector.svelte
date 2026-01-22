@@ -211,10 +211,10 @@
 		</svg>
 	</button>
 
-	<!-- Dropdown menu -->
+	<!-- Dropdown menu (opens upward) -->
 	{#if isOpen}
 		<div
-			class="absolute left-0 top-full z-50 mt-1 w-72 rounded-lg border border-theme bg-theme-secondary py-1 shadow-xl"
+			class="absolute bottom-full left-0 z-50 mb-1 max-h-80 w-72 overflow-y-auto rounded-lg border border-theme bg-theme-secondary py-1 shadow-xl"
 		>
 			<!-- Model default section -->
 			<div class="px-3 py-1.5 text-xs font-medium text-theme-muted uppercase tracking-wide">
