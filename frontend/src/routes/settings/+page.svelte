@@ -13,6 +13,7 @@
 		AgentsTab,
 		KnowledgeTab,
 		MemoryTab,
+		AboutTab,
 		type SettingsTab
 	} from '$lib/components/settings';
 
@@ -48,6 +49,8 @@
 				<KnowledgeTab />
 			{:else if activeTab === 'memory'}
 				<MemoryTab />
+			{:else if activeTab === 'about'}
+				<AboutTab />
 			{/if}
 		</div>
 	</div>

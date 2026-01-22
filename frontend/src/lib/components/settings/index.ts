@@ -9,6 +9,7 @@ export { default as ToolsTab } from './ToolsTab.svelte';
 export { default as AgentsTab } from './AgentsTab.svelte';
 export { default as KnowledgeTab } from './KnowledgeTab.svelte';
 export { default as MemoryTab } from './MemoryTab.svelte';
+export { default as AboutTab } from './AboutTab.svelte';
 export { default as ModelParametersPanel } from './ModelParametersPanel.svelte';
 
 export type { SettingsTab } from './SettingsTabs.svelte';
