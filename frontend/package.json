@@ -12,9 +12,12 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
     "postinstall": "cp node_modules/pdfjs-dist/build/pdf.worker.min.mjs static/ 2>/dev/null || true"
   },
   "devDependencies": {
+    "@playwright/test": "^1.57.0",
     "@sveltejs/adapter-auto": "^4.0.0",
     "@sveltejs/kit": "^2.16.0",
     "@sveltejs/vite-plugin-svelte": "^5.1.1",
