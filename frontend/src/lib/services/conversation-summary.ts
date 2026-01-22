@@ -15,7 +15,7 @@ import { indexConversationMessages } from './chat-indexer.js';
 export interface SummaryGenerationOptions {
 	/** Model to use for summary generation */
 	model: string;
-	/** Base URL for Ollama API */
+	/** Base URL for Ollama API (default: /api/v1/ollama, uses proxy) */
 	baseUrl?: string;
 	/** Maximum messages to include in summary context */
 	maxMessages?: number;
@@ -37,7 +37,7 @@ export async function generateConversationSummary(
 	messages: Message[],
 	options: SummaryGenerationOptions
 ): Promise<string> {
-	const { model, baseUrl = 'http://localhost:11434', maxMessages = 20 } = options;
+	const { model, baseUrl = '/api/v1/ollama', maxMessages = 20 } = options;
 
 	// Filter to user and assistant messages only
 	const relevantMessages = messages
