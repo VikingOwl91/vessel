@@ -1,6 +1,8 @@
 name: vessel-dev
 
 # Development docker-compose - uses host network for direct Ollama access
+# Reads configuration from .env file
+
 services:
   frontend:
     build:
@@ -12,8 +14,8 @@ services:
       - ./frontend:/app
       - /app/node_modules
     environment:
-      - OLLAMA_API_URL=http://localhost:11434
-      - BACKEND_URL=http://localhost:9090
+      - OLLAMA_API_URL=${OLLAMA_API_URL:-http://localhost:11434}
+      - BACKEND_URL=${BACKEND_URL:-http://localhost:9090}
     depends_on:
       - backend
 
@@ -26,4 +28,4 @@ services:
       - ./backend/data:/app/data
     environment:
       - GIN_MODE=release
-    command: ["./server", "-port", "9090", "-db", "/app/data/vessel.db", "-ollama-url", "http://localhost:11434"]
+    command: ["./server", "-port", "${PORT:-9090}", "-db", "${DB_PATH:-/app/data/vessel.db}", "-ollama-url", "${OLLAMA_URL:-http://localhost:11434}"]
