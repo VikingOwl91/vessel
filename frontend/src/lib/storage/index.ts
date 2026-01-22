@@ -11,6 +11,8 @@ export type {
 	StoredAttachment,
 	SyncQueueItem,
 	StoredPrompt,
+	StoredAgent,
+	StoredProjectAgent,
 	StorageResult
 } from './db.js';
 
@@ -27,6 +29,7 @@ export {
 	archiveConversation,
 	updateMessageCount,
 	updateSystemPrompt,
+	updateAgentId,
 	searchConversations
 } from './conversations.js';
 
@@ -103,3 +106,17 @@ export {
 	clearDefaultPrompt,
 	searchPrompts
 } from './prompts.js';
+
+// Agent operations
+export {
+	getAllAgents,
+	getAgent,
+	createAgent,
+	updateAgent,
+	deleteAgent,
+	assignAgentToProject,
+	removeAgentFromProject,
+	getAgentsForProject,
+	getProjectsForAgent
+} from './agents.js';
+export type { Agent, CreateAgentData, UpdateAgentData } from './agents.js';

@@ -132,6 +132,57 @@ class ToolsState {
 	}
 
 	/**
+	 * Get tool definitions filtered by an agent's enabled tool names.
+	 * When null is passed, returns all enabled tools (no agent filtering).
+	 *
+	 * @param enabledToolNames - Array of tool names the agent can use, or null for all tools
+	 * @returns Tool definitions that match both the agent's list and are globally enabled
+	 */
+	getToolDefinitionsForAgent(enabledToolNames: string[] | null): ToolDefinition[] {
+		if (!this.toolsEnabled) {
+			return [];
+		}
+
+		// If null, return all enabled tools (no agent filtering)
+		if (enabledToolNames === null) {
+			return this.getEnabledToolDefinitions();
+		}
+
+		// If empty array, return no tools
+		if (enabledToolNames.length === 0) {
+			return [];
+		}
+
+		const toolNameSet = new Set(enabledToolNames);
+		const result: ToolDefinition[] = [];
+
+		// Filter builtin tools
+		const builtinDefs = toolRegistry.getDefinitions();
+		for (const def of builtinDefs) {
+			const name = def.function.name;
+			if (toolNameSet.has(name) && this.isToolEnabled(name)) {
+				result.push(def);
+			}
+		}
+
+		// Filter custom tools
+		for (const custom of this.customTools) {
+			if (toolNameSet.has(custom.name) && custom.enabled && this.isToolEnabled(custom.name)) {
+				result.push({
+					type: 'function',
+					function: {
+						name: custom.name,
+						description: custom.description,
+						parameters: custom.parameters
+					}
+				});
+			}
+		}
+
+		return result;
+	}
+
+	/**
 	 * Get all tool definitions with their enabled state
 	 */
 	getAllToolsWithState(): Array<{ definition: ToolDefinition; enabled: boolean; isBuiltin: boolean }> {
