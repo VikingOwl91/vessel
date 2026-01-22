@@ -10,6 +10,7 @@
 		ModelsTab,
 		PromptsTab,
 		ToolsTab,
+		AgentsTab,
 		KnowledgeTab,
 		MemoryTab,
 		type SettingsTab
@@ -41,6 +42,8 @@
 				<PromptsTab />
 			{:else if activeTab === 'tools'}
 				<ToolsTab />
+			{:else if activeTab === 'agents'}
+				<AgentsTab />
 			{:else if activeTab === 'knowledge'}
 				<KnowledgeTab />
 			{:else if activeTab === 'memory'}

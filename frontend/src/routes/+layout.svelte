@@ -17,6 +17,7 @@
 	import ModelSelect from '$lib/components/layout/ModelSelect.svelte';
 	import { ToastContainer, ShortcutsModal } from '$lib/components/shared';
 	import UpdateBanner from '$lib/components/shared/UpdateBanner.svelte';
+	import SyncWarningBanner from '$lib/components/shared/SyncWarningBanner.svelte';
 
 	import type { LayoutData } from './$types';
 	import type { Snippet } from 'svelte';
@@ -183,6 +184,9 @@
 
 <!-- Update notification banner -->
 <UpdateBanner />
+
+<!-- Sync warning banner (shows when backend disconnected) -->
+<SyncWarningBanner />
 
 <!-- Keyboard shortcuts help -->
 <ShortcutsModal isOpen={showShortcutsModal} onClose={() => (showShortcutsModal = false)} />

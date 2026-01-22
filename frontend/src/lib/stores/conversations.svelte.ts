@@ -226,6 +226,15 @@ export class ConversationsState {
 		this.update(id, { systemPromptId });
 	}
 
+	/**
+	 * Update the agent for a conversation
+	 * @param id The conversation ID
+	 * @param agentId The agent ID (or null to clear)
+	 */
+	setAgentId(id: string, agentId: string | null): void {
+		this.update(id, { agentId });
+	}
+
 	// ========================================================================
 	// Project-related methods
 	// ========================================================================

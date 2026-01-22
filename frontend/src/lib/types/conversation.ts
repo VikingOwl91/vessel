@@ -18,6 +18,8 @@ export interface Conversation {
 	systemPromptId?: string | null;
 	/** Optional project ID this conversation belongs to */
 	projectId?: string | null;
+	/** Optional agent ID for this conversation (determines prompt and tools) */
+	agentId?: string | null;
 	/** Auto-generated conversation summary for cross-chat context */
 	summary?: string | null;
 	/** Timestamp when summary was last updated */

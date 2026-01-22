@@ -4,7 +4,7 @@
 	 * Handles sending messages, streaming responses, and tool execution
 	 */
 
-	import { chatState, modelsState, conversationsState, toolsState, promptsState, toastState } from '$lib/stores';
+	import { chatState, modelsState, conversationsState, toolsState, promptsState, toastState, agentsState } from '$lib/stores';
 	import { resolveSystemPrompt } from '$lib/services/prompt-resolution.js';
 	import { serverConversationsState } from '$lib/stores/server-conversations.svelte';
 	import { streamingMetricsState } from '$lib/stores/streaming-metrics.svelte';
@@ -34,6 +34,7 @@
 	import SummaryBanner from './SummaryBanner.svelte';
 	import StreamingStats from './StreamingStats.svelte';
 	import SystemPromptSelector from './SystemPromptSelector.svelte';
+	import AgentSelector from './AgentSelector.svelte';
 	import ModelParametersPanel from '$lib/components/settings/ModelParametersPanel.svelte';
 	import { settingsState } from '$lib/stores/settings.svelte';
 	import { buildProjectContext, formatProjectContextForPrompt, hasProjectContext } from '$lib/services/project-context.js';
@@ -88,6 +89,9 @@
 
 	// System prompt for new conversations (before a conversation is created)
 	let newChatPromptId = $state<string | null>(null);
+
+	// Agent for new conversations (before a conversation is created)
+	let newChatAgentId = $state<string | null>(null);
 
 	// File picker trigger function (bound from ChatInput -> FileUpload)
 	let triggerFilePicker: (() => void) | undefined = $state();
@@ -229,15 +233,31 @@
 
 	/**
 	 * Get tool definitions for the API call
+	 * If an agent is selected, only returns tools the agent has enabled
 	 */
 	function getToolsForApi(): OllamaToolDefinition[] | undefined {
 		if (!toolsState.toolsEnabled) return undefined;
+
+		// If an agent is selected, filter tools by agent's enabled list
+		if (currentAgent) {
+			const tools = toolsState.getToolDefinitionsForAgent(currentAgent.enabledToolNames);
+			return tools.length > 0 ? tools as OllamaToolDefinition[] : undefined;
+		}
+
+		// No agent - use all enabled tools
 		const tools = toolsState.getEnabledToolDefinitions();
 		return tools.length > 0 ? tools as OllamaToolDefinition[] : undefined;
 	}
 
 	// Derived: Check if there are any messages
 	const hasMessages = $derived(chatState.visibleMessages.length > 0);
+
+	// Derived: Current agent (from conversation or new chat selection)
+	const currentAgent = $derived.by(() => {
+		const agentId = mode === 'conversation' ? conversation?.agentId : newChatAgentId;
+		if (!agentId) return null;
+		return agentsState.get(agentId) ?? null;
+	});
 
 	// Update context manager when model changes
 	$effect(() => {
@@ -725,15 +745,18 @@
 			// Resolve system prompt using priority chain:
 			// 1. Per-conversation prompt
 			// 2. New chat selection
-			// 3. Model-prompt mapping
-			// 4. Model-embedded prompt (from Modelfile)
-			// 5. Capability-matched prompt
-			// 6. Global active prompt
-			// 7. None
+			// 3. Agent prompt (if agent selected)
+			// 4. Model-prompt mapping
+			// 5. Model-embedded prompt (from Modelfile)
+			// 6. Capability-matched prompt
+			// 7. Global active prompt
+			// 8. None
 			const resolvedPrompt = await resolveSystemPrompt(
 				model,
 				conversation?.systemPromptId,
-				newChatPromptId
+				newChatPromptId,
+				currentAgent?.promptId,
+				currentAgent?.name
 			);
 
 			if (resolvedPrompt.content) {
@@ -1279,6 +1302,19 @@
 							currentPromptId={newChatPromptId}
 							modelName={modelsState.selectedId ?? undefined}
 							onSelect={(promptId) => (newChatPromptId = promptId)}
+						/>
+					{/if}
+
+					<!-- Agent selector -->
+					{#if mode === 'conversation' && conversation}
+						<AgentSelector
+							conversationId={conversation.id}
+							currentAgentId={conversation.agentId}
+						/>
+					{:else if mode === 'new'}
+						<AgentSelector
+							currentAgentId={newChatAgentId}
+							onSelect={(agentId) => (newChatAgentId = agentId)}
 						/>
 					{/if}
 				</div>

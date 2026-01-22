@@ -9,6 +9,7 @@
 	import ExportDialog from '$lib/components/shared/ExportDialog.svelte';
 	import ConfirmDialog from '$lib/components/shared/ConfirmDialog.svelte';
 	import ContextUsageBar from '$lib/components/chat/ContextUsageBar.svelte';
+	import SyncStatusIndicator from './SyncStatusIndicator.svelte';
 
 	interface Props {
 		/** Slot for the model select dropdown */
@@ -167,8 +168,13 @@
 			</div>
 		{/if}
 
-		<!-- Right section: Theme toggle + Chat actions -->
+		<!-- Right section: Sync status + Theme toggle + Chat actions -->
 		<div class="flex items-center gap-1">
+			<!-- Sync status indicator (always visible) -->
+			<div class="mr-1 px-2">
+				<SyncStatusIndicator />
+			</div>
+
 			<!-- Theme toggle (always visible) -->
 			<button
 				type="button"

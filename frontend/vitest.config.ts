@@ -20,6 +20,8 @@ export default defineConfig({
 		alias: {
 			$lib: resolve('./src/lib'),
 			$app: resolve('./src/tests/mocks/app')
-		}
+		},
+		// Force browser mode for Svelte 5 component testing
+		conditions: ['browser']
 	}
 });

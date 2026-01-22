@@ -23,6 +23,8 @@ export interface StoredConversation {
 	systemPromptId?: string | null;
 	/** Optional project ID this conversation belongs to */
 	projectId?: string | null;
+	/** Optional agent ID for this conversation (determines prompt and tools) */
+	agentId?: string | null;
 	/** Auto-generated conversation summary for cross-chat context */
 	summary?: string | null;
 	/** Timestamp when summary was last updated */
@@ -46,6 +48,8 @@ export interface ConversationRecord {
 	systemPromptId?: string | null;
 	/** Optional project ID this conversation belongs to */
 	projectId?: string | null;
+	/** Optional agent ID for this conversation (determines prompt and tools) */
+	agentId?: string | null;
 	/** Auto-generated conversation summary for cross-chat context */
 	summary?: string | null;
 	/** Timestamp when summary was last updated */
@@ -266,6 +270,39 @@ export interface StoredChatChunk {
 	createdAt: number;
 }
 
+// ============================================================================
+// Agent-related interfaces (v7)
+// ============================================================================
+
+/**
+ * Stored agent configuration
+ * Agents combine identity, system prompt, and tool subset
+ */
+export interface StoredAgent {
+	id: string;
+	name: string;
+	description: string;
+	/** Reference to StoredPrompt.id, null for no specific prompt */
+	promptId: string | null;
+	/** Array of tool names this agent can use (subset of available tools) */
+	enabledToolNames: string[];
+	/** Optional preferred model for this agent */
+	preferredModel: string | null;
+	createdAt: number;
+	updatedAt: number;
+}
+
+/**
+ * Junction table for project-agent many-to-many relationship
+ * Defines which agents are available (rostered) for a project
+ */
+export interface StoredProjectAgent {
+	id: string;
+	projectId: string;
+	agentId: string;
+	createdAt: number;
+}
+
 /**
  * Ollama WebUI database class
  * Manages all local storage tables
@@ -284,6 +321,9 @@ class OllamaDatabase extends Dexie {
 	projects!: Table<StoredProject>;
 	projectLinks!: Table<StoredProjectLink>;
 	chatChunks!: Table<StoredChatChunk>;
+	// Agent-related tables (v7)
+	agents!: Table<StoredAgent>;
+	projectAgents!: Table<StoredProjectAgent>;
 
 	constructor() {
 		super('vessel');
@@ -373,6 +413,27 @@ class OllamaDatabase extends Dexie {
 			projectLinks: 'id, projectId, createdAt',
 			// Chat message chunks for cross-conversation RAG within projects
 			chatChunks: 'id, conversationId, projectId, createdAt'
+		});
+
+		// Version 7: Agents for specialized task handling
+		// Adds: agents table and project-agent junction table for roster assignment
+		this.version(7).stores({
+			conversations: 'id, updatedAt, isPinned, isArchived, systemPromptId, projectId',
+			messages: 'id, conversationId, parentId, createdAt',
+			attachments: 'id, messageId',
+			syncQueue: 'id, entityType, createdAt',
+			documents: 'id, name, createdAt, updatedAt, projectId',
+			chunks: 'id, documentId',
+			prompts: 'id, name, isDefault, updatedAt',
+			modelSystemPrompts: 'modelName',
+			modelPromptMappings: 'id, modelName, promptId',
+			projects: 'id, name, createdAt, updatedAt',
+			projectLinks: 'id, projectId, createdAt',
+			chatChunks: 'id, conversationId, projectId, createdAt',
+			// Agents: indexed by id and name for lookup/sorting
+			agents: 'id, name, createdAt, updatedAt',
+			// Project-Agent junction table with compound index for efficient queries
+			projectAgents: 'id, projectId, agentId, [projectId+agentId]'
 		});
 	}
 }
