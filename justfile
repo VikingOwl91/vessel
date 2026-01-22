@@ -1,22 +1,38 @@
 # Vessel development commands
 # Run `just --list` to see all available commands
 
-# Default backend port for local development (matches vite proxy default)
-backend_port := "9090"
+# Load .env file if present
+set dotenv-load
 
-# Default llama.cpp server port
-llama_port := "8081"
+# ----- Port Configuration -----
+# All ports can be overridden via .env or environment variables
+
+# Backend API port
+backend_port := env_var_or_default("PORT", "9090")
+
+# Frontend dev server port
+frontend_port := env_var_or_default("DEV_PORT", "7842")
+
+# llama.cpp server port
+llama_port := env_var_or_default("LLAMA_PORT", "8081")
+
+# Ollama API port
+ollama_port := env_var_or_default("OLLAMA_PORT", "11434")
 
 # Models directory
 models_dir := env_var_or_default("VESSEL_MODELS_DIR", "~/.vessel/models")
 
-# Run backend locally on port 9090 (matches vite proxy default)
+# ----- Local Development -----
+
+# Run backend locally
 backend:
     cd backend && go run ./cmd/server -port {{backend_port}}
 
 # Run frontend dev server
 frontend:
     cd frontend && npm run dev
+
+# ----- Docker Development -----
 
 # Start frontend + backend in Docker
 dev:
@@ -30,9 +46,19 @@ dev-detach:
 dev-stop:
     docker compose -f docker-compose.dev.yml down
 
+# Rebuild Docker images (use after code changes)
+dev-build:
+    docker compose -f docker-compose.dev.yml build
+
+# Rebuild Docker images from scratch (no cache)
+dev-rebuild:
+    docker compose -f docker-compose.dev.yml build --no-cache
+
 # View Docker dev logs
 dev-logs:
     docker compose -f docker-compose.dev.yml logs -f
+
+# ----- llama.cpp -----
 
 # List local GGUF models
 models:
@@ -50,16 +76,20 @@ llama-server-custom model port ctx gpu:
 all model: dev-detach
     just llama-server {{model}}
 
+# ----- Health & Status -----
+
 # Check health of all services
 health:
-    @echo "Frontend (7842):"
-    @curl -sf http://localhost:7842/health 2>/dev/null && echo "  OK" || echo "  Not running"
-    @echo "Backend (9090):"
-    @curl -sf http://localhost:9090/health 2>/dev/null && echo "  OK" || echo "  Not running"
-    @echo "Ollama (11434):"
-    @curl -sf http://localhost:11434/api/tags 2>/dev/null && echo "  OK" || echo "  Not running"
-    @echo "llama.cpp (8081):"
-    @curl -sf http://localhost:8081/health 2>/dev/null && echo "  OK" || echo "  Not running"
+    @echo "Frontend ({{frontend_port}}):"
+    @curl -sf http://localhost:{{frontend_port}}/health 2>/dev/null && echo "  OK" || echo "  Not running"
+    @echo "Backend ({{backend_port}}):"
+    @curl -sf http://localhost:{{backend_port}}/health 2>/dev/null && echo "  OK" || echo "  Not running"
+    @echo "Ollama ({{ollama_port}}):"
+    @curl -sf http://localhost:{{ollama_port}}/api/tags 2>/dev/null && echo "  OK" || echo "  Not running"
+    @echo "llama.cpp ({{llama_port}}):"
+    @curl -sf http://localhost:{{llama_port}}/health 2>/dev/null && echo "  OK" || echo "  Not running"
+
+# ----- Testing & Building -----
 
 # Run backend tests
 test-backend:
@@ -75,4 +105,4 @@ build-frontend:
 
 # Build backend for production
 build-backend:
-    cd backend && go build -o vessel ./cmd/server
+    cd backend && go build -v -o vessel ./cmd/server && echo "Built: backend/vessel"
