@@ -45,3 +45,7 @@ backend/data-dev/
 
 # Generated files
 frontend/static/pdf.worker.min.mjs
+
+# Test artifacts
+frontend/playwright-report/
+frontend/test-results/
