@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"os"
 	"sync"
 	"time"
 )
@@ -197,13 +198,25 @@ func probeEndpoint(ctx context.Context, endpoint DiscoveryEndpoint) DiscoveryRes
 	return result
 }
 
-// DefaultDiscoveryEndpoints returns the default endpoints to probe
+// getEnvOrDefault returns the environment variable value or a default
+func getEnvOrDefault(key, defaultValue string) string {
+	if value := os.Getenv(key); value != "" {
+		return value
+	}
+	return defaultValue
+}
+
+// DefaultDiscoveryEndpoints returns the default endpoints to probe.
+// URLs can be overridden via environment variables (useful for Docker).
 func DefaultDiscoveryEndpoints() []DiscoveryEndpoint {
+	ollamaURL := getEnvOrDefault("OLLAMA_URL", "http://localhost:11434")
+	llamacppURL := getEnvOrDefault("LLAMACPP_URL", "http://localhost:8081")
+	lmstudioURL := getEnvOrDefault("LMSTUDIO_URL", "http://localhost:1234")
+
 	return []DiscoveryEndpoint{
-		{Type: BackendTypeOllama, BaseURL: "http://localhost:11434"},
-		{Type: BackendTypeLlamaCpp, BaseURL: "http://localhost:8081"},
-		{Type: BackendTypeLlamaCpp, BaseURL: "http://localhost:8080"},
-		{Type: BackendTypeLMStudio, BaseURL: "http://localhost:1234"},
+		{Type: BackendTypeOllama, BaseURL: ollamaURL},
+		{Type: BackendTypeLlamaCpp, BaseURL: llamacppURL},
+		{Type: BackendTypeLMStudio, BaseURL: lmstudioURL},
 	}
 }
 

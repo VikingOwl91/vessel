@@ -372,9 +372,44 @@ func (a *Adapter) convertChatRequest(req *backends.ChatRequest) map[string]inter
 	messages := make([]map[string]interface{}, len(req.Messages))
 	for i, msg := range req.Messages {
 		m := map[string]interface{}{
-			"role":    msg.Role,
-			"content": msg.Content,
+			"role": msg.Role,
 		}
+
+		// Handle messages with images (vision support)
+		if len(msg.Images) > 0 {
+			// Build content as array of parts for multimodal messages
+			contentParts := make([]map[string]interface{}, 0, len(msg.Images)+1)
+
+			// Add text part if content is not empty
+			if msg.Content != "" {
+				contentParts = append(contentParts, map[string]interface{}{
+					"type": "text",
+					"text": msg.Content,
+				})
+			}
+
+			// Add image parts
+			for _, img := range msg.Images {
+				// Images are expected as base64 data URLs or URLs
+				imageURL := img
+				if !strings.HasPrefix(img, "http://") && !strings.HasPrefix(img, "https://") && !strings.HasPrefix(img, "data:") {
+					// Assume base64 encoded image, default to JPEG
+					imageURL = "data:image/jpeg;base64," + img
+				}
+				contentParts = append(contentParts, map[string]interface{}{
+					"type": "image_url",
+					"image_url": map[string]interface{}{
+						"url": imageURL,
+					},
+				})
+			}
+
+			m["content"] = contentParts
+		} else {
+			// Plain text message
+			m["content"] = msg.Content
+		}
+
 		if msg.Name != "" {
 			m["name"] = msg.Name
 		}
