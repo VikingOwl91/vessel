@@ -1410,6 +1410,7 @@
 								type="button"
 								role="switch"
 								aria-checked={thinkingEnabled}
+								aria-label="Toggle thinking mode"
 								onclick={() => (thinkingEnabled = !thinkingEnabled)}
 								class="relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2 focus:ring-offset-theme-primary {thinkingEnabled ? 'bg-amber-600' : 'bg-theme-tertiary'}"
 							>

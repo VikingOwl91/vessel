@@ -163,9 +163,11 @@
 	<div
 		class="fixed inset-0 z-50 flex items-start justify-center bg-black/60 pt-[15vh] backdrop-blur-sm"
 		onclick={handleBackdropClick}
+		onkeydown={handleKeydown}
 		role="dialog"
 		aria-modal="true"
 		aria-labelledby="search-dialog-title"
+		tabindex="-1"
 	>
 		<!-- Dialog -->
 		<div class="mx-4 w-full max-w-2xl rounded-xl border border-theme bg-theme-primary shadow-2xl">

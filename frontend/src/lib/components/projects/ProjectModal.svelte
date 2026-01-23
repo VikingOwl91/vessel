@@ -210,9 +210,11 @@
 	<div
 		class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
 		onclick={handleBackdropClick}
+		onkeydown={handleKeydown}
 		role="dialog"
 		aria-modal="true"
 		aria-labelledby="project-dialog-title"
+		tabindex="-1"
 	>
 		<!-- Dialog -->
 		<div class="mx-4 w-full max-w-lg rounded-xl border border-theme bg-theme-primary shadow-2xl">
@@ -313,9 +315,9 @@
 
 						<!-- Color -->
 						<div>
-							<label class="mb-1.5 block text-sm font-medium text-theme-secondary">
+							<span class="mb-1.5 block text-sm font-medium text-theme-secondary">
 								Color
-							</label>
+							</span>
 							<div class="flex items-center gap-2">
 								{#each presetColors as presetColor}
 									<button

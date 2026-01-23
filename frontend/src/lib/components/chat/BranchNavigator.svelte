@@ -2,7 +2,6 @@
 	/**
 	 * BranchNavigator - Navigate between message branches
 	 * Shows "< 1/3 >" style navigation for sibling messages
-	 * Supports keyboard navigation with arrow keys when focused
 	 */
 
 	import type { BranchInfo } from '$lib/types';
@@ -15,7 +14,7 @@
 	const { branchInfo, onSwitch }: Props = $props();
 
 	// Reference to the navigator container for focus management
-	let navigatorRef: HTMLDivElement | null = $state(null);
+	let navigatorRef: HTMLElement | null = $state(null);
 
 	// Track transition state for smooth animations
 	let isTransitioning = $state(false);
@@ -52,7 +51,7 @@
 	}
 
 	/**
-	 * Handle keyboard navigation when the component is focused
+	 * Handle keyboard navigation with arrow keys
 	 */
 	function handleKeydown(event: KeyboardEvent): void {
 		if (event.key === 'ArrowLeft' && canGoPrev) {
@@ -65,11 +64,10 @@
 	}
 </script>
 
-<div
+<nav
 	bind:this={navigatorRef}
 	class="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600 transition-all duration-150 ease-out dark:bg-gray-700 dark:text-gray-300"
 	class:opacity-50={isTransitioning}
-	role="navigation"
 	aria-label="Message branch navigation - Use left/right arrow keys to navigate"
 	tabindex="0"
 	onkeydown={handleKeydown}
@@ -126,16 +124,16 @@
 			/>
 		</svg>
 	</button>
-</div>
+</nav>
 
 <style>
 	/* Focus ring style for keyboard navigation */
-	div:focus {
+	nav:focus {
 		outline: none;
 		box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.5);
 	}
 
-	div:focus-visible {
+	nav:focus-visible {
 		outline: none;
 		box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.5);
 	}

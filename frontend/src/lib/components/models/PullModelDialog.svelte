@@ -40,9 +40,11 @@
 	<div
 		class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
 		onclick={handleBackdropClick}
+		onkeydown={handleKeydown}
 		role="dialog"
 		aria-modal="true"
 		aria-labelledby="pull-dialog-title"
+		tabindex="-1"
 	>
 		<!-- Dialog -->
 		<div class="w-full max-w-md rounded-xl bg-theme-secondary p-6 shadow-xl">

@@ -27,7 +27,7 @@
 	let dragOver = $state(false);
 
 	// File input reference
-	let fileInput: HTMLInputElement;
+	let fileInput = $state<HTMLInputElement | null>(null);
 
 	// Load documents on mount
 	onMount(async () => {

@@ -209,7 +209,7 @@
 		<div class="space-y-4">
 			<!-- Input -->
 			<div>
-				<label class="block text-xs font-medium text-theme-secondary mb-1">Input Arguments (JSON)</label>
+				<span class="block text-xs font-medium text-theme-secondary mb-1">Input Arguments (JSON)</span>
 				<CodeEditor bind:value={testInput} language="json" minHeight="80px" />
 			</div>
 
@@ -237,7 +237,7 @@
 			<!-- Result -->
 			{#if testResult}
 				<div>
-					<label class="block text-xs font-medium text-theme-secondary mb-1">Result</label>
+					<span class="block text-xs font-medium text-theme-secondary mb-1">Result</span>
 					<div
 						class="rounded-lg p-3 text-sm font-mono overflow-x-auto {testResult.success
 							? 'bg-emerald-900/30 border border-emerald-500/30'

@@ -25,7 +25,7 @@
 	let dragOver = $state(false);
 	let deleteConfirm = $state<{ show: boolean; doc: StoredDocument | null }>({ show: false, doc: null });
 
-	let fileInput: HTMLInputElement;
+	let fileInput = $state<HTMLInputElement | null>(null);
 
 	onMount(async () => {
 		await refreshData();

@@ -71,9 +71,11 @@
 	<div
 		class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
 		onclick={handleBackdropClick}
+		onkeydown={handleKeydown}
 		role="dialog"
 		aria-modal="true"
 		aria-labelledby="move-dialog-title"
+		tabindex="-1"
 	>
 		<!-- Dialog -->
 		<div class="mx-4 w-full max-w-sm rounded-xl border border-theme bg-theme-primary shadow-2xl">
