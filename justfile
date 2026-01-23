@@ -64,13 +64,13 @@ dev-logs:
 models:
     @ls -lh {{models_dir}}/*.gguf 2>/dev/null || echo "No models found in {{models_dir}}"
 
-# Start llama.cpp server with a model
+# Start llama.cpp server with a model (--host 0.0.0.0 for Docker access)
 llama-server model:
-    llama-server -m {{models_dir}}/{{model}} --port {{llama_port}} -c 8192 -ngl 99
+    llama-server -m {{models_dir}}/{{model}} --host 0.0.0.0 --port {{llama_port}} -c 8192 -ngl 99
 
 # Start llama.cpp server with custom settings
 llama-server-custom model port ctx gpu:
-    llama-server -m {{models_dir}}/{{model}} --port {{port}} -c {{ctx}} -ngl {{gpu}}
+    llama-server -m {{models_dir}}/{{model}} --host 0.0.0.0 --port {{port}} -c {{ctx}} -ngl {{gpu}}
 
 # Start Docker dev + llama.cpp server
 all model: dev-detach

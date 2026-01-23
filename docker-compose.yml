@@ -26,6 +26,8 @@ services:
       - "9090:9090"
     environment:
       - OLLAMA_URL=http://host.docker.internal:11434
+      - LLAMACPP_URL=http://host.docker.internal:8081
+      - LMSTUDIO_URL=http://host.docker.internal:1234
       - PORT=9090
     extra_hosts:
       - "host.docker.internal:host-gateway"
