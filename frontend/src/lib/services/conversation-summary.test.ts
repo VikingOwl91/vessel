@@ -15,8 +15,7 @@ function createMessage(
 ): Message {
 	return {
 		role,
-		content,
-		timestamp: Date.now()
+		content
 	};
 }
 

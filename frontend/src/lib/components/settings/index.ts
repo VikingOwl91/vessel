@@ -3,7 +3,7 @@
  */
 export { default as SettingsTabs } from './SettingsTabs.svelte';
 export { default as GeneralTab } from './GeneralTab.svelte';
-export { default as ModelsTab } from './ModelsTab.svelte';
+export { default as AIProvidersTab } from './AIProvidersTab.svelte';
 export { default as PromptsTab } from './PromptsTab.svelte';
 export { default as ToolsTab } from './ToolsTab.svelte';
 export { default as AgentsTab } from './AgentsTab.svelte';

@@ -41,7 +41,8 @@ function mockStreamResponse(chunks: unknown[]): Response {
 }
 
 describe('OllamaClient', () => {
-	let mockFetch: ReturnType<typeof vi.fn>;
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	let mockFetch: any;
 	let client: OllamaClient;
 
 	beforeEach(() => {
@@ -228,7 +229,11 @@ describe('OllamaClient', () => {
 				tools: [
 					{
 						type: 'function',
-						function: { name: 'get_time', description: 'Get current time' }
+						function: {
+							name: 'get_time',
+							description: 'Get current time',
+							parameters: { type: 'object', properties: {} }
+						}
 					}
 				]
 			});

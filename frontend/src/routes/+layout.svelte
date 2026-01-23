@@ -8,6 +8,7 @@
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { chatState, conversationsState, modelsState, uiState, promptsState, versionState, projectsState } from '$lib/stores';
+	import { backendsState, type BackendType } from '$lib/stores/backends.svelte';
 	import { getAllConversations } from '$lib/storage';
 	import { syncManager } from '$lib/backend';
 	import { keyboardShortcuts, getShortcuts } from '$lib/utils';
@@ -22,6 +23,12 @@
 	import type { LayoutData } from './$types';
 	import type { Snippet } from 'svelte';
 
+	// LocalStorage key for persisting backend selection
+	const BACKEND_STORAGE_KEY = 'vessel:selectedBackend';
+
+	// Flag to track if initial backend restoration is complete
+	let backendRestoreComplete = $state(false);
+
 	interface Props {
 		data: LayoutData;
 		children: Snippet;
@@ -34,6 +41,88 @@
 
 	// Shortcuts modal state
 	let showShortcutsModal = $state(false);
+
+	// Model name for non-Ollama backends
+	let nonOllamaModelName = $state<string | null>(null);
+	let modelFetchFailed = $state(false);
+
+	// Fetch model name when backend changes to non-Ollama
+	$effect(() => {
+		const backendType = backendsState.activeType;
+		if (backendType && backendType !== 'ollama') {
+			fetchNonOllamaModel();
+		} else {
+			nonOllamaModelName = null;
+			modelFetchFailed = false;
+		}
+	});
+
+	/**
+	 * Fetch model name from unified API for non-Ollama backends
+	 */
+	async function fetchNonOllamaModel(): Promise<void> {
+		modelFetchFailed = false;
+		nonOllamaModelName = null;
+		try {
+			const response = await fetch('/api/v1/ai/models');
+			if (response.ok) {
+				const data = await response.json();
+				if (data.models && data.models.length > 0) {
+					// Extract just the model name (strip path/extension for cleaner display)
+					const fullName = data.models[0].name;
+					nonOllamaModelName = fullName.replace(/\.gguf$/i, '');
+				} else {
+					// No models loaded
+					modelFetchFailed = true;
+				}
+			} else {
+				modelFetchFailed = true;
+			}
+		} catch (err) {
+			console.error('Failed to fetch model from backend:', err);
+			modelFetchFailed = true;
+		}
+	}
+
+	/**
+	 * Persist backend selection to localStorage
+	 */
+	function persistBackendSelection(type: BackendType): void {
+		try {
+			localStorage.setItem(BACKEND_STORAGE_KEY, type);
+		} catch (err) {
+			console.error('Failed to persist backend selection:', err);
+		}
+	}
+
+	/**
+	 * Restore last selected backend if it's available
+	 */
+	async function restoreLastBackend(): Promise<void> {
+		try {
+			const lastBackend = localStorage.getItem(BACKEND_STORAGE_KEY) as BackendType | null;
+			if (lastBackend && lastBackend !== backendsState.activeType) {
+				// Check if the last backend is connected
+				const backend = backendsState.get(lastBackend);
+				if (backend?.status === 'connected') {
+					await backendsState.setActive(lastBackend);
+				}
+			}
+		} catch (err) {
+			console.error('Failed to restore backend selection:', err);
+		} finally {
+			// Mark restore as complete so persistence effect can start working
+			backendRestoreComplete = true;
+		}
+	}
+
+	// Watch for backend changes and persist (only after initial restore is complete)
+	$effect(() => {
+		const activeType = backendsState.activeType;
+		if (activeType && backendRestoreComplete) {
+			persistBackendSelection(activeType);
+		}
+	});
 
 	onMount(() => {
 		// Initialize UI state (handles responsive detection, theme, etc.)
@@ -67,6 +156,9 @@
 
 		// Load projects from IndexedDB
 		projectsState.load();
+
+		// Restore last selected backend after backends finish loading
+		backendsState.ready().then(() => restoreLastBackend());
 
 		// Schedule background migration for chat indexing (runs after 5 seconds)
 		scheduleMigration(5000);
@@ -167,7 +259,30 @@
 		<header class="relative z-40 flex-shrink-0">
 			<TopNav onNavigateHome={handleNavigateHome}>
 				{#snippet modelSelect()}
-					<ModelSelect />
+					{#if backendsState.activeType === 'ollama'}
+						<ModelSelect />
+					{:else if backendsState.activeBackend}
+						<!-- Non-Ollama backend indicator with model name -->
+						<div class="flex items-center gap-2 rounded-lg border border-theme bg-theme-secondary/50 px-3 py-2 text-sm">
+							<svg class="h-4 w-4 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+								<path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2" />
+							</svg>
+							<div class="flex flex-col">
+								<span class="font-medium text-theme-primary">
+									{#if nonOllamaModelName}
+										{nonOllamaModelName}
+									{:else if modelFetchFailed}
+										<span class="text-amber-400">No model loaded</span>
+									{:else}
+										Loading...
+									{/if}
+								</span>
+								<span class="text-xs text-theme-muted">
+									{backendsState.activeType === 'llamacpp' ? 'llama.cpp' : 'LM Studio'}
+								</span>
+							</div>
+						</div>
+					{/if}
 				{/snippet}
 			</TopNav>
 		</header>
