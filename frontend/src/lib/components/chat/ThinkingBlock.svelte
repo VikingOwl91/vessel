@@ -14,9 +14,15 @@
 		inProgress?: boolean;
 	}
 
-	const { content, defaultExpanded = false, inProgress = false }: Props = $props();
+	const props: Props = $props();
 
-	let isExpanded = $state(defaultExpanded);
+	// Initialize isExpanded from defaultExpanded prop
+	// This intentionally captures the initial value only - user controls expansion independently
+	let isExpanded = $state(props.defaultExpanded ?? false);
+
+	// Derived values from props for reactivity
+	const content = $derived(props.content);
+	const inProgress = $derived(props.inProgress ?? false);
 
 	// Keep collapsed during and after streaming - user can expand manually if desired
 

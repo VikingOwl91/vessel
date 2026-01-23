@@ -20,7 +20,7 @@
 
 	let { isOpen, onClose }: Props = $props();
 
-	let fileInput: HTMLInputElement;
+	let fileInput = $state<HTMLInputElement | null>(null);
 	let isDragOver = $state(false);
 	let selectedFile = $state<File | null>(null);
 	let validationResult = $state<ValidationResult | null>(null);
@@ -168,9 +168,11 @@
 	<div
 		class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
 		onclick={handleBackdropClick}
+		onkeydown={handleKeydown}
 		role="dialog"
 		aria-modal="true"
 		aria-labelledby="import-dialog-title"
+		tabindex="-1"
 	>
 		<!-- Dialog -->
 		<div class="mx-4 w-full max-w-lg rounded-xl border border-theme bg-theme-primary shadow-2xl">

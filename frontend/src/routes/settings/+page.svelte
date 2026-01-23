@@ -7,7 +7,7 @@
 	import {
 		SettingsTabs,
 		GeneralTab,
-		ModelsTab,
+		AIProvidersTab,
 		PromptsTab,
 		ToolsTab,
 		AgentsTab,
@@ -37,8 +37,8 @@
 		<div class="mx-auto max-w-5xl">
 			{#if activeTab === 'general'}
 				<GeneralTab />
-			{:else if activeTab === 'models'}
-				<ModelsTab />
+			{:else if activeTab === 'ai'}
+				<AIProvidersTab />
 			{:else if activeTab === 'prompts'}
 				<PromptsTab />
 			{:else if activeTab === 'tools'}

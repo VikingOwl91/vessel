@@ -211,6 +211,7 @@
 				{:else if searchQuery}
 					<button
 						type="button"
+						aria-label="Clear search"
 						onclick={() => { searchQuery = ''; titleResults = []; messageResults = []; semanticResults = []; updateUrl(''); }}
 						class="absolute right-4 top-1/2 -translate-y-1/2 rounded p-1 text-theme-muted hover:text-theme-primary"
 					>

@@ -7,11 +7,13 @@
 
 	import { onMount } from 'svelte';
 	import { chatState, conversationsState, modelsState, toolsState, promptsState } from '$lib/stores';
+	import { backendsState } from '$lib/stores/backends.svelte';
 	import { resolveSystemPrompt } from '$lib/services/prompt-resolution.js';
 	import { streamingMetricsState } from '$lib/stores/streaming-metrics.svelte';
 	import { settingsState } from '$lib/stores/settings.svelte';
 	import { createConversation as createStoredConversation, addMessage as addStoredMessage, updateConversation, saveAttachments } from '$lib/storage';
 	import { ollamaClient } from '$lib/ollama';
+	import { unifiedLLMClient } from '$lib/llm';
 	import type { OllamaMessage, OllamaToolDefinition, OllamaToolCall } from '$lib/ollama';
 	import { getFunctionModel, USE_FUNCTION_MODEL, runToolCalls, formatToolResultsForChat } from '$lib/tools';
 	import { searchSimilar, formatResultsAsContext, getKnowledgeBaseStats } from '$lib/memory';
@@ -80,9 +82,28 @@
 	 * Creates a new conversation and starts streaming the response
 	 */
 	async function handleFirstMessage(content: string, images?: string[], attachments?: FileAttachment[]): Promise<void> {
-		const model = modelsState.selectedId;
+		// Get model name based on active backend
+		let model: string | null = null;
+
+		if (backendsState.activeType === 'ollama') {
+			model = modelsState.selectedId;
+		} else if (backendsState.activeType === 'llamacpp' || backendsState.activeType === 'lmstudio') {
+			// For OpenAI-compatible backends, fetch model from the unified API
+			try {
+				const response = await fetch('/api/v1/ai/models');
+				if (response.ok) {
+					const data = await response.json();
+					if (data.models && data.models.length > 0) {
+						model = data.models[0].name;
+					}
+				}
+			} catch (err) {
+				console.error('Failed to get model from backend:', err);
+			}
+		}
+
 		if (!model) {
-			console.error('No model selected');
+			console.error('No model available');
 			return;
 		}
 
@@ -298,92 +319,121 @@
 			let streamingThinking = '';
 			let thinkingClosed = false;
 
-			await ollamaClient.streamChatWithCallbacks(
-				{ model: chatModel, messages, tools, think: useNativeThinking, options: settingsState.apiParameters },
-				{
-					onThinkingToken: (token) => {
-						// Clear "Processing..." on first token
-						if (needsClearOnFirstToken) {
-							chatState.setStreamContent('');
-							needsClearOnFirstToken = false;
-						}
-						// Accumulate thinking and update the message
-						if (!streamingThinking) {
-							// Start the thinking block
-							chatState.appendToStreaming('<think>');
-						}
-						streamingThinking += token;
-						chatState.appendToStreaming(token);
-						streamingMetricsState.incrementTokens();
-					},
-					onToken: (token) => {
-						// Clear "Processing..." on first token
-						if (needsClearOnFirstToken) {
-							chatState.setStreamContent('');
-							needsClearOnFirstToken = false;
-						}
-						// Close thinking block when content starts
-						if (streamingThinking && !thinkingClosed) {
-							chatState.appendToStreaming('</think>\n\n');
-							thinkingClosed = true;
-						}
-						chatState.appendToStreaming(token);
-						streamingMetricsState.incrementTokens();
-					},
-					onToolCall: (toolCalls) => {
-						pendingToolCalls = toolCalls;
-					},
-					onComplete: async () => {
-						// Close thinking block if it was opened but not closed (e.g., tool calls without content)
-						if (streamingThinking && !thinkingClosed) {
-							chatState.appendToStreaming('</think>\n\n');
-							thinkingClosed = true;
-						}
-
-						chatState.finishStreaming();
-						streamingMetricsState.endStream();
-
-						// Handle tool calls if received
-						if (pendingToolCalls && pendingToolCalls.length > 0) {
-							await executeToolsAndContinue(
-								model,
-								assistantMessageId,
-								userMessageId,
-								pendingToolCalls,
-								conversationId
-							);
-							return;
-						}
-
-						// Persist assistant message with the SAME ID as chatState
-						const node = chatState.messageTree.get(assistantMessageId);
-						if (node) {
-							await addStoredMessage(
-								conversationId,
-								{ role: 'assistant', content: node.message.content },
-								userMessageId,
-								assistantMessageId
-							);
-							await updateConversation(conversationId, {});
-							conversationsState.update(conversationId, {});
-
-							// Generate a smarter title in the background (don't await)
-							generateSmartTitle(conversationId, content, node.message.content);
-
-							// Update URL now that streaming is complete
-							replaceState(`/chat/${conversationId}`, {});
-						}
-					},
-					onError: (error) => {
-						console.error('Streaming error:', error);
-						// Show error to user instead of leaving "Processing..."
-						const errorMsg = error instanceof Error ? error.message : 'Unknown error';
-						chatState.setStreamContent(`⚠️ Error: ${errorMsg}`);
-						chatState.finishStreaming();
-						streamingMetricsState.endStream();
-					}
+			// Helper to handle completion (shared by both backends)
+			const handleComplete = async () => {
+				// Close thinking block if it was opened but not closed
+				if (streamingThinking && !thinkingClosed) {
+					chatState.appendToStreaming('</think>\n\n');
+					thinkingClosed = true;
 				}
-			);
+
+				chatState.finishStreaming();
+				streamingMetricsState.endStream();
+
+				// Handle tool calls if received (Ollama only)
+				if (pendingToolCalls && pendingToolCalls.length > 0) {
+					await executeToolsAndContinue(
+						model,
+						assistantMessageId,
+						userMessageId,
+						pendingToolCalls,
+						conversationId
+					);
+					return;
+				}
+
+				// Persist assistant message with the SAME ID as chatState
+				const node = chatState.messageTree.get(assistantMessageId);
+				if (node) {
+					await addStoredMessage(
+						conversationId,
+						{ role: 'assistant', content: node.message.content },
+						userMessageId,
+						assistantMessageId
+					);
+					await updateConversation(conversationId, {});
+					conversationsState.update(conversationId, {});
+
+					// Generate a smarter title in the background (don't await)
+					generateSmartTitle(conversationId, content, node.message.content);
+
+					// Update URL now that streaming is complete
+					replaceState(`/chat/${conversationId}`, {});
+				}
+			};
+
+			// Helper to handle errors (shared by both backends)
+			const handleError = (error: unknown) => {
+				console.error('Streaming error:', error);
+				const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+				chatState.setStreamContent(`⚠️ Error: ${errorMsg}`);
+				chatState.finishStreaming();
+				streamingMetricsState.endStream();
+			};
+
+			// Use appropriate client based on active backend
+			if (backendsState.activeType === 'ollama') {
+				// Ollama: full features including tools and thinking
+				await ollamaClient.streamChatWithCallbacks(
+					{ model: chatModel, messages, tools, think: useNativeThinking, options: settingsState.apiParameters },
+					{
+						onThinkingToken: (token) => {
+							if (needsClearOnFirstToken) {
+								chatState.setStreamContent('');
+								needsClearOnFirstToken = false;
+							}
+							if (!streamingThinking) {
+								chatState.appendToStreaming('<think>');
+							}
+							streamingThinking += token;
+							chatState.appendToStreaming(token);
+							streamingMetricsState.incrementTokens();
+						},
+						onToken: (token) => {
+							if (needsClearOnFirstToken) {
+								chatState.setStreamContent('');
+								needsClearOnFirstToken = false;
+							}
+							if (streamingThinking && !thinkingClosed) {
+								chatState.appendToStreaming('</think>\n\n');
+								thinkingClosed = true;
+							}
+							chatState.appendToStreaming(token);
+							streamingMetricsState.incrementTokens();
+						},
+						onToolCall: (toolCalls) => {
+							pendingToolCalls = toolCalls;
+						},
+						onComplete: handleComplete,
+						onError: handleError
+					}
+				);
+			} else {
+				// llama.cpp / LM Studio: use unified API (no tools/thinking support)
+				try {
+					await unifiedLLMClient.streamChatWithCallbacks(
+						{
+							model: chatModel,
+							messages: messages.map(m => ({ role: m.role, content: m.content })),
+							stream: true
+						},
+						{
+							onToken: (token) => {
+								if (needsClearOnFirstToken) {
+									chatState.setStreamContent('');
+									needsClearOnFirstToken = false;
+								}
+								chatState.appendToStreaming(token);
+								streamingMetricsState.incrementTokens();
+							},
+							onComplete: handleComplete,
+							onError: handleError
+						}
+					);
+				} catch (error) {
+					handleError(error);
+				}
+			}
 		} catch (error) {
 			console.error('Failed to send message:', error);
 			// Show error to user

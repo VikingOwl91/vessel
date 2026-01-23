@@ -435,7 +435,7 @@
 
 				<!-- Tools Selection -->
 				<div class="mb-4">
-					<label class="mb-2 block text-sm font-medium text-theme-primary"> Allowed Tools </label>
+					<span class="mb-2 block text-sm font-medium text-theme-primary"> Allowed Tools </span>
 					<div class="max-h-48 overflow-y-auto rounded-lg border border-theme bg-theme-secondary p-2">
 						{#if availableTools.length === 0}
 							<p class="p-2 text-sm text-theme-muted">No tools available</p>

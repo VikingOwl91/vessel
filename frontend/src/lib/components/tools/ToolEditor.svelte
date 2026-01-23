@@ -248,6 +248,7 @@ print(json.dumps(result))`;
 					type="button"
 					onclick={onClose}
 					class="rounded-lg p-1.5 text-theme-muted hover:bg-theme-tertiary hover:text-theme-primary"
+					aria-label="Close dialog"
 				>
 					<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
 						<path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" />
@@ -290,7 +291,7 @@ print(json.dumps(result))`;
 				<!-- Parameters -->
 				<div>
 					<div class="flex items-center justify-between">
-						<label class="block text-sm font-medium text-theme-secondary">Parameters</label>
+						<span class="block text-sm font-medium text-theme-secondary">Parameters</span>
 						<button
 							type="button"
 							onclick={addParameter}
@@ -335,6 +336,7 @@ print(json.dumps(result))`;
 										type="button"
 										onclick={() => removeParameter(index)}
 										class="text-theme-muted hover:text-red-400"
+										aria-label="Remove parameter"
 									>
 										<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
 											<path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd" />
@@ -352,8 +354,8 @@ print(json.dumps(result))`;
 				</div>
 
 				<!-- Implementation Type -->
-				<div>
-					<label class="block text-sm font-medium text-theme-secondary">Implementation</label>
+				<fieldset>
+					<legend class="block text-sm font-medium text-theme-secondary">Implementation</legend>
 					<div class="mt-2 flex flex-wrap gap-4">
 						<label class="flex items-center gap-2 text-theme-secondary">
 							<input
@@ -383,15 +385,15 @@ print(json.dumps(result))`;
 							HTTP Endpoint
 						</label>
 					</div>
-				</div>
+				</fieldset>
 
 				<!-- Code Editor (JavaScript or Python) -->
 				{#if implementation === 'javascript' || implementation === 'python'}
 					<div>
 						<div class="flex items-center justify-between mb-1">
-							<label class="block text-sm font-medium text-theme-secondary">
+							<span class="block text-sm font-medium text-theme-secondary">
 								{implementation === 'javascript' ? 'JavaScript' : 'Python'} Code
-							</label>
+							</span>
 							<div class="flex items-center gap-2">
 								<!-- Templates dropdown -->
 								<div class="relative">
@@ -500,8 +502,8 @@ print(json.dumps(result))`;
 								<p class="mt-1 text-sm text-red-400">{errors.endpoint}</p>
 							{/if}
 						</div>
-						<div>
-							<label class="block text-sm font-medium text-theme-secondary">HTTP Method</label>
+						<fieldset>
+							<legend class="block text-sm font-medium text-theme-secondary">HTTP Method</legend>
 							<div class="mt-2 flex gap-4">
 								<label class="flex items-center gap-2 text-theme-secondary">
 									<input type="radio" bind:group={httpMethod} value="GET" />
@@ -512,7 +514,7 @@ print(json.dumps(result))`;
 									POST
 								</label>
 							</div>
-						</div>
+						</fieldset>
 
 						<!-- Test button for HTTP -->
 						<button
@@ -548,6 +550,7 @@ print(json.dumps(result))`;
 						class="relative inline-flex h-6 w-11 cursor-pointer rounded-full transition-colors {enabled ? 'bg-blue-600' : 'bg-theme-tertiary'}"
 						role="switch"
 						aria-checked={enabled}
+						aria-label="Enable tool"
 					>
 						<span
 							class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow transition {enabled ? 'translate-x-5' : 'translate-x-0'}"

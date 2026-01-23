@@ -23,11 +23,11 @@ function createMessageNode(
 	return {
 		id: id || crypto.randomUUID(),
 		parentId: null,
-		siblingIds: [],
+		childIds: [],
+		createdAt: new Date(),
 		message: {
 			role,
-			content,
-			timestamp: Date.now()
+			content
 		}
 	};
 }

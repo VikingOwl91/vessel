@@ -108,6 +108,7 @@
 					class="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 focus:ring-offset-theme {settingsState.autoCompactEnabled ? 'bg-emerald-600' : 'bg-theme-tertiary'}"
 					role="switch"
 					aria-checked={settingsState.autoCompactEnabled}
+					aria-label="Toggle auto-compact"
 				>
 					<span
 						class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out {settingsState.autoCompactEnabled ? 'translate-x-5' : 'translate-x-0'}"
@@ -192,6 +193,7 @@
 					class="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 focus:ring-offset-theme {settingsState.useCustomParameters ? 'bg-orange-600' : 'bg-theme-tertiary'}"
 					role="switch"
 					aria-checked={settingsState.useCustomParameters}
+					aria-label="Toggle custom model parameters"
 				>
 					<span
 						class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out {settingsState.useCustomParameters ? 'translate-x-5' : 'translate-x-0'}"

@@ -14,6 +14,9 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"vessel-backend/internal/api"
+	"vessel-backend/internal/backends"
+	"vessel-backend/internal/backends/ollama"
+	"vessel-backend/internal/backends/openai"
 	"vessel-backend/internal/database"
 )
 
@@ -29,9 +32,11 @@ func getEnvOrDefault(key, defaultValue string) string {
 
 func main() {
 	var (
-		port      = flag.String("port", getEnvOrDefault("PORT", "8080"), "Server port")
-		dbPath    = flag.String("db", getEnvOrDefault("DB_PATH", "./data/vessel.db"), "Database file path")
-		ollamaURL = flag.String("ollama-url", getEnvOrDefault("OLLAMA_URL", "http://localhost:11434"), "Ollama API URL")
+		port        = flag.String("port", getEnvOrDefault("PORT", "8080"), "Server port")
+		dbPath      = flag.String("db", getEnvOrDefault("DB_PATH", "./data/vessel.db"), "Database file path")
+		ollamaURL   = flag.String("ollama-url", getEnvOrDefault("OLLAMA_URL", "http://localhost:11434"), "Ollama API URL")
+		llamacppURL = flag.String("llamacpp-url", getEnvOrDefault("LLAMACPP_URL", "http://localhost:8081"), "llama.cpp server URL")
+		lmstudioURL = flag.String("lmstudio-url", getEnvOrDefault("LMSTUDIO_URL", "http://localhost:1234"), "LM Studio server URL")
 	)
 	flag.Parse()
 
@@ -45,6 +50,52 @@ func main() {
 	// Run migrations
 	if err := database.RunMigrations(db); err != nil {
 		log.Fatalf("Failed to run migrations: %v", err)
+	}
+
+	// Initialize backend registry
+	registry := backends.NewRegistry()
+
+	// Register Ollama backend
+	ollamaAdapter, err := ollama.NewAdapter(backends.BackendConfig{
+		Type:    backends.BackendTypeOllama,
+		BaseURL: *ollamaURL,
+	})
+	if err != nil {
+		log.Printf("Warning: Failed to create Ollama adapter: %v", err)
+	} else {
+		if err := registry.Register(ollamaAdapter); err != nil {
+			log.Printf("Warning: Failed to register Ollama backend: %v", err)
+		}
+	}
+
+	// Register llama.cpp backend (if URL is configured)
+	if *llamacppURL != "" {
+		llamacppAdapter, err := openai.NewAdapter(backends.BackendConfig{
+			Type:    backends.BackendTypeLlamaCpp,
+			BaseURL: *llamacppURL,
+		})
+		if err != nil {
+			log.Printf("Warning: Failed to create llama.cpp adapter: %v", err)
+		} else {
+			if err := registry.Register(llamacppAdapter); err != nil {
+				log.Printf("Warning: Failed to register llama.cpp backend: %v", err)
+			}
+		}
+	}
+
+	// Register LM Studio backend (if URL is configured)
+	if *lmstudioURL != "" {
+		lmstudioAdapter, err := openai.NewAdapter(backends.BackendConfig{
+			Type:    backends.BackendTypeLMStudio,
+			BaseURL: *lmstudioURL,
+		})
+		if err != nil {
+			log.Printf("Warning: Failed to create LM Studio adapter: %v", err)
+		} else {
+			if err := registry.Register(lmstudioAdapter); err != nil {
+				log.Printf("Warning: Failed to register LM Studio backend: %v", err)
+			}
+		}
 	}
 
 	// Setup Gin router
@@ -64,7 +115,7 @@ func main() {
 	}))
 
 	// Register routes
-	api.SetupRoutes(r, db, *ollamaURL, Version)
+	api.SetupRoutes(r, db, *ollamaURL, Version, registry)
 
 	// Create server
 	srv := &http.Server{
@@ -79,8 +130,12 @@ func main() {
 	// Graceful shutdown handling
 	go func() {
 		log.Printf("Server starting on port %s", *port)
-		log.Printf("Ollama URL: %s (using official Go client)", *ollamaURL)
 		log.Printf("Database: %s", *dbPath)
+		log.Printf("Backends configured:")
+		log.Printf("  - Ollama: %s", *ollamaURL)
+		log.Printf("  - llama.cpp: %s", *llamacppURL)
+		log.Printf("  - LM Studio: %s", *lmstudioURL)
+		log.Printf("Active backend: %s", registry.ActiveType().String())
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("Failed to start server: %v", err)
 		}
