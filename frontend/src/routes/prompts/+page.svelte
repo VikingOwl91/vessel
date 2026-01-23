@@ -646,6 +646,7 @@
 		role="dialog"
 		aria-modal="true"
 		aria-labelledby="editor-title"
+		tabindex="-1"
 	>
 		<div class="w-full max-w-2xl rounded-xl bg-theme-secondary shadow-xl">
 			<div class="flex items-center justify-between border-b border-theme px-6 py-4">
@@ -655,6 +656,7 @@
 				<button
 					type="button"
 					onclick={closeEditor}
+					aria-label="Close dialog"
 					class="rounded p-1 text-theme-muted transition-colors hover:bg-theme-tertiary hover:text-theme-primary"
 				>
 					<svg
@@ -742,10 +744,10 @@
 					</div>
 
 					<!-- Capability targeting -->
-					<div>
-						<label class="mb-2 block text-sm font-medium text-theme-secondary">
+					<fieldset>
+						<legend class="mb-2 block text-sm font-medium text-theme-secondary">
 							Auto-use for model types
-						</label>
+						</legend>
 						<p class="mb-3 text-xs text-theme-muted">
 							When a model has these capabilities and no other prompt is selected, this prompt will
 							be used automatically.
@@ -766,7 +768,7 @@
 								</button>
 							{/each}
 						</div>
-					</div>
+					</fieldset>
 				</div>
 
 				<!-- Actions -->
@@ -804,11 +806,13 @@
 		}}
 		role="dialog"
 		aria-modal="true"
+		aria-labelledby="preview-title"
+		tabindex="-1"
 	>
 		<div class="w-full max-w-2xl max-h-[80vh] flex flex-col rounded-xl bg-theme-secondary shadow-xl">
 			<div class="flex items-center justify-between border-b border-theme px-6 py-4">
 				<div>
-					<h2 class="text-lg font-semibold text-theme-primary">{previewTemplate.name}</h2>
+					<h2 id="preview-title" class="text-lg font-semibold text-theme-primary">{previewTemplate.name}</h2>
 					<div class="mt-1 flex items-center gap-2">
 						<span class="inline-flex items-center gap-1 rounded px-2 py-0.5 text-xs {info.color}">
 							<span>{info.icon}</span>
@@ -826,6 +830,7 @@
 				<button
 					type="button"
 					onclick={() => (previewTemplate = null)}
+					aria-label="Close dialog"
 					class="rounded p-1 text-theme-muted transition-colors hover:bg-theme-tertiary hover:text-theme-primary"
 				>
 					<svg

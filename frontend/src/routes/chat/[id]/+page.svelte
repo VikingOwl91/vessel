@@ -21,11 +21,11 @@
 	let currentConversationId = $state<string | null>(null);
 	let isLoading = $state(false);
 
-	// Extract first message from data and clear from URL
-	let initialMessage = $state<string | null>(data.firstMessage);
+	// Extract first message from data (captured once per page load)
+	const initialMessage = $derived(data.firstMessage);
 	$effect(() => {
 		// Clear firstMessage from URL to keep it clean
-		if (data.firstMessage && $page.url.searchParams.has('firstMessage')) {
+		if (initialMessage && $page.url.searchParams.has('firstMessage')) {
 			const url = new URL($page.url);
 			url.searchParams.delete('firstMessage');
 			replaceState(url, {});

@@ -5,10 +5,12 @@ import (
 	"log"
 
 	"github.com/gin-gonic/gin"
+
+	"vessel-backend/internal/backends"
 )
 
 // SetupRoutes configures all API routes
-func SetupRoutes(r *gin.Engine, db *sql.DB, ollamaURL string, appVersion string) {
+func SetupRoutes(r *gin.Engine, db *sql.DB, ollamaURL string, appVersion string, registry *backends.Registry) {
 	// Initialize Ollama service with official client
 	ollamaService, err := NewOllamaService(ollamaURL)
 	if err != nil {
@@ -95,6 +97,24 @@ func SetupRoutes(r *gin.Engine, db *sql.DB, ollamaURL string, appVersion string)
 			models.POST("/remote/sync", modelRegistry.SyncModelsHandler())
 			// Get sync status
 			models.GET("/remote/status", modelRegistry.SyncStatusHandler())
+		}
+
+		// Unified AI routes (multi-backend support)
+		if registry != nil {
+			aiHandlers := NewAIHandlers(registry)
+			ai := v1.Group("/ai")
+			{
+				// Backend management
+				ai.GET("/backends", aiHandlers.ListBackendsHandler())
+				ai.POST("/backends/discover", aiHandlers.DiscoverBackendsHandler())
+				ai.POST("/backends/active", aiHandlers.SetActiveHandler())
+				ai.GET("/backends/:type/health", aiHandlers.HealthCheckHandler())
+				ai.POST("/backends/register", aiHandlers.RegisterBackendHandler())
+
+				// Unified model and chat endpoints (route to active backend)
+				ai.GET("/models", aiHandlers.ListModelsHandler())
+				ai.POST("/chat", aiHandlers.ChatHandler())
+			}
 		}
 
 		// Ollama API routes (using official client)

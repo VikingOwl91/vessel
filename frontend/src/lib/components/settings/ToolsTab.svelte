@@ -151,6 +151,7 @@
 				class="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-violet-500 focus:ring-offset-2 focus:ring-offset-theme-primary {toolsState.toolsEnabled ? 'bg-violet-600' : 'bg-theme-tertiary'}"
 				role="switch"
 				aria-checked={toolsState.toolsEnabled}
+				aria-label="Toggle all tools"
 			>
 				<span class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out {toolsState.toolsEnabled ? 'translate-x-5' : 'translate-x-0'}"></span>
 			</button>
@@ -194,6 +195,7 @@
 					type="button"
 					onclick={() => searchQuery = ''}
 					class="absolute right-3 top-1/2 -translate-y-1/2 text-theme-muted hover:text-theme-primary"
+					aria-label="Clear search"
 				>
 					<svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
 						<path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -289,6 +291,7 @@
 									class="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-theme {tool.enabled ? 'bg-blue-600' : 'bg-theme-tertiary'}"
 									role="switch"
 									aria-checked={tool.enabled}
+									aria-label="Toggle {tool.definition.function.name} tool"
 									disabled={!toolsState.toolsEnabled}
 								>
 									<span class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out {tool.enabled ? 'translate-x-5' : 'translate-x-0'}"></span>
@@ -438,6 +441,7 @@
 										class="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-violet-500 focus:ring-offset-2 focus:ring-offset-theme {tool.enabled ? 'bg-violet-600' : 'bg-theme-tertiary'}"
 										role="switch"
 										aria-checked={tool.enabled}
+										aria-label="Toggle {tool.name} tool"
 										disabled={!toolsState.toolsEnabled}
 									>
 										<span class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out {tool.enabled ? 'translate-x-5' : 'translate-x-0'}"></span>

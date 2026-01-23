@@ -13,12 +13,25 @@
 		height?: number;
 	}
 
-	const { html, title = 'Preview', height = 300 }: Props = $props();
+	const props: Props = $props();
+
+	// Derive values from props
+	const html = $derived(props.html);
+	const title = $derived(props.title ?? 'Preview');
+	const height = $derived(props.height ?? 300);
 
 	// State
 	let iframeRef: HTMLIFrameElement | null = $state(null);
 	let isExpanded = $state(false);
-	let actualHeight = $state(height);
+	// actualHeight tracks the current display height, synced from prop when not expanded
+	let actualHeight = $state(props.height ?? 300);
+
+	// Sync actualHeight when height prop changes (only when not expanded)
+	$effect(() => {
+		if (!isExpanded) {
+			actualHeight = height;
+		}
+	});
 
 	// Generate a complete HTML document if the code is just a fragment
 	const fullHtml = $derived.by(() => {

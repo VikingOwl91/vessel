@@ -93,13 +93,12 @@
 
 		<!-- Enable custom parameters toggle -->
 		<div class="mb-4 flex items-center justify-between">
-			<label class="flex items-center gap-2 text-sm text-theme-secondary">
-				<span>Use custom parameters</span>
-			</label>
+			<span class="text-sm text-theme-secondary">Use custom parameters</span>
 			<button
 				type="button"
 				role="switch"
 				aria-checked={settingsState.useCustomParameters}
+				aria-label="Toggle custom model parameters"
 				onclick={() => settingsState.toggleCustomParameters(modelDefaults)}
 				class="relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-2 focus:ring-offset-theme-secondary {settingsState.useCustomParameters ? 'bg-sky-600' : 'bg-theme-tertiary'}"
 			>

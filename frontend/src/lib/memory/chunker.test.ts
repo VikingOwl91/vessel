@@ -18,7 +18,7 @@ import type { DocumentChunk } from './types';
 let uuidCounter = 0;
 beforeEach(() => {
 	uuidCounter = 0;
-	vi.spyOn(crypto, 'randomUUID').mockImplementation(() => `test-uuid-${++uuidCounter}`);
+	vi.spyOn(crypto, 'randomUUID').mockImplementation(() => `00000000-0000-0000-0000-00000000000${++uuidCounter}` as `${string}-${string}-${string}-${string}-${string}`);
 });
 
 afterEach(() => {

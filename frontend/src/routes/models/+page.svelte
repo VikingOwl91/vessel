@@ -466,7 +466,7 @@
 								<path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
 							</svg>
 							<span>{deleteError}</span>
-							<button type="button" onclick={() => deleteError = null} class="ml-auto text-red-400 hover:text-red-300">
+							<button type="button" onclick={() => deleteError = null} class="ml-auto text-red-400 hover:text-red-300" aria-label="Dismiss error">
 								<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
 									<path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
 								</svg>
@@ -987,6 +987,7 @@
 							onclick={() => modelRegistry.prevPage()}
 							disabled={!modelRegistry.hasPrevPage}
 							class="rounded-lg border border-theme bg-theme-secondary px-3 py-2 text-sm text-theme-muted transition-colors hover:bg-theme-tertiary hover:text-theme-primary disabled:cursor-not-allowed disabled:opacity-50"
+							aria-label="Previous page"
 						>
 							<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
 								<path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
@@ -1002,6 +1003,7 @@
 							onclick={() => modelRegistry.nextPage()}
 							disabled={!modelRegistry.hasNextPage}
 							class="rounded-lg border border-theme bg-theme-secondary px-3 py-2 text-sm text-theme-muted transition-colors hover:bg-theme-tertiary hover:text-theme-primary disabled:cursor-not-allowed disabled:opacity-50"
+							aria-label="Next page"
 						>
 							<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
 								<path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
@@ -1024,6 +1026,7 @@
 					type="button"
 					onclick={closeDetails}
 					class="rounded p-1 text-theme-muted transition-colors hover:bg-theme-tertiary hover:text-theme-primary"
+					aria-label="Close model details"
 				>
 					<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
 						<path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />

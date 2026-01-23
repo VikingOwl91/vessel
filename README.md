@@ -5,7 +5,7 @@
 <h1 align="center">Vessel</h1>
 
 <p align="center">
-  <strong>A modern, feature-rich web interface for Ollama</strong>
+  <strong>A modern, feature-rich web interface for local LLMs</strong>
 </p>
 
 <p align="center">
@@ -28,13 +28,14 @@
 
 **Vessel** is intentionally focused on:
 
-- A clean, local-first UI for **Ollama**
+- A clean, local-first UI for **local LLMs**
+- **Multiple backends**: Ollama, llama.cpp, LM Studio
 - Minimal configuration
 - Low visual and cognitive overhead
 - Doing a small set of things well
 
 If you want a **universal, highly configurable platform** → [open-webui](https://github.com/open-webui/open-webui) is a great choice.
-If you want a **small, focused UI for local Ollama usage** → Vessel is built for that.
+If you want a **small, focused UI for local LLM usage** → Vessel is built for that.
 
 ---
 
@@ -65,7 +66,13 @@ If you want a **small, focused UI for local Ollama usage** → Vessel is built f
 - Agentic tool calling with chain-of-thought reasoning
 - Test tools before saving with the built-in testing panel
 
-### Models
+### LLM Backends
+- **Ollama** — Full model management, pull/delete/create custom models
+- **llama.cpp** — High-performance inference with GGUF models
+- **LM Studio** — Desktop app integration
+- Switch backends without restart, auto-detection of available backends
+
+### Models (Ollama)
 - Browse and pull models from ollama.com
 - Create custom models with embedded system prompts
 - **Per-model parameters** — customize temperature, context size, top_k/top_p
@@ -112,7 +119,10 @@ If you want a **small, focused UI for local Ollama usage** → Vessel is built f
 ### Prerequisites
 
 - [Docker](https://docs.docker.com/get-docker/) and Docker Compose
-- [Ollama](https://ollama.com/download) running locally
+- An LLM backend (at least one):
+  - [Ollama](https://ollama.com/download) (recommended)
+  - [llama.cpp](https://github.com/ggerganov/llama.cpp)
+  - [LM Studio](https://lmstudio.ai/)
 
 ### Configure Ollama
 
@@ -160,6 +170,7 @@ Full documentation is available on the **[GitHub Wiki](https://github.com/Viking
 | Guide | Description |
 |-------|-------------|
 | [Getting Started](https://github.com/VikingOwl91/vessel/wiki/Getting-Started) | Installation and configuration |
+| [LLM Backends](https://github.com/VikingOwl91/vessel/wiki/LLM-Backends) | Configure Ollama, llama.cpp, or LM Studio |
 | [Projects](https://github.com/VikingOwl91/vessel/wiki/Projects) | Organize conversations into projects |
 | [Knowledge Base](https://github.com/VikingOwl91/vessel/wiki/Knowledge-Base) | RAG with document upload and semantic search |
 | [Search](https://github.com/VikingOwl91/vessel/wiki/Search) | Semantic and content search across chats |
@@ -178,6 +189,7 @@ Full documentation is available on the **[GitHub Wiki](https://github.com/Viking
 Vessel prioritizes **usability and simplicity** over feature breadth.
 
 **Completed:**
+- [x] Multi-backend support (Ollama, llama.cpp, LM Studio)
 - [x] Model browser with filtering and update detection
 - [x] Custom tools (JavaScript, Python, HTTP)
 - [x] System prompt library with model-specific defaults
@@ -197,7 +209,7 @@ Vessel prioritizes **usability and simplicity** over feature breadth.
 - Multi-user systems
 - Cloud sync
 - Plugin ecosystems
-- Support for every LLM runtime
+- Cloud/API-based LLM providers (OpenAI, Anthropic, etc.)
 
 > *Do one thing well. Keep the UI out of the way.*
 
@@ -223,5 +235,5 @@ Contributions are welcome!
 GPL-3.0 — See [LICENSE](LICENSE) for details.
 
 <p align="center">
-  Made with <a href="https://ollama.com">Ollama</a> and <a href="https://svelte.dev">Svelte</a>
+  Made with <a href="https://svelte.dev">Svelte</a> • Supports <a href="https://ollama.com">Ollama</a>, <a href="https://github.com/ggerganov/llama.cpp">llama.cpp</a>, and <a href="https://lmstudio.ai/">LM Studio</a>
 </p>

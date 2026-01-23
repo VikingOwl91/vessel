@@ -358,11 +358,11 @@
 
 <!-- Editor Modal -->
 {#if showEditor}
-	<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onclick={(e) => { if (e.target === e.currentTarget) closeEditor(); }} role="dialog" aria-modal="true">
+	<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onclick={(e) => { if (e.target === e.currentTarget) closeEditor(); }} onkeydown={(e) => { if (e.key === 'Escape') closeEditor(); }} role="dialog" aria-modal="true" tabindex="-1">
 		<div class="w-full max-w-2xl rounded-xl bg-theme-secondary shadow-xl">
 			<div class="flex items-center justify-between border-b border-theme px-6 py-4">
 				<h3 class="text-lg font-semibold text-theme-primary">{editingPrompt ? 'Edit Prompt' : 'Create Prompt'}</h3>
-				<button type="button" onclick={closeEditor} class="rounded p-1 text-theme-muted hover:bg-theme-tertiary hover:text-theme-primary">
+				<button type="button" onclick={closeEditor} aria-label="Close dialog" class="rounded p-1 text-theme-muted hover:bg-theme-tertiary hover:text-theme-primary">
 					<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
 						<path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
 					</svg>
@@ -392,8 +392,8 @@
 						<label for="prompt-default" class="text-sm text-theme-secondary">Set as default for new chats</label>
 					</div>
 
-					<div>
-						<label class="mb-2 block text-sm font-medium text-theme-secondary">Auto-use for model types</label>
+					<fieldset>
+						<legend class="mb-2 block text-sm font-medium text-theme-secondary">Auto-use for model types</legend>
 						<div class="flex flex-wrap gap-2">
 							{#each CAPABILITIES as cap (cap.id)}
 								<button type="button" onclick={() => toggleCapability(cap.id)} class="rounded-lg border px-3 py-1.5 text-sm transition-colors {formTargetCapabilities.includes(cap.id) ? 'border-blue-500 bg-blue-500/20 text-blue-300' : 'border-theme-subtle bg-theme-tertiary text-theme-muted hover:border-theme hover:text-theme-secondary'}" title={cap.description}>
@@ -401,7 +401,7 @@
 								</button>
 							{/each}
 						</div>
-					</div>
+					</fieldset>
 				</div>
 
 				<div class="mt-6 flex justify-end gap-3">
@@ -418,7 +418,7 @@
 <!-- Template Preview Modal -->
 {#if previewTemplate}
 	{@const info = categoryInfo[previewTemplate.category]}
-	<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onclick={(e) => { if (e.target === e.currentTarget) previewTemplate = null; }} role="dialog" aria-modal="true">
+	<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onclick={(e) => { if (e.target === e.currentTarget) previewTemplate = null; }} onkeydown={(e) => { if (e.key === 'Escape') previewTemplate = null; }} role="dialog" aria-modal="true" tabindex="-1">
 		<div class="w-full max-w-2xl max-h-[80vh] flex flex-col rounded-xl bg-theme-secondary shadow-xl">
 			<div class="flex items-center justify-between border-b border-theme px-6 py-4">
 				<div>
@@ -428,7 +428,7 @@
 						{info.label}
 					</span>
 				</div>
-				<button type="button" onclick={() => (previewTemplate = null)} class="rounded p-1 text-theme-muted hover:bg-theme-tertiary hover:text-theme-primary">
+				<button type="button" onclick={() => (previewTemplate = null)} aria-label="Close dialog" class="rounded p-1 text-theme-muted hover:bg-theme-tertiary hover:text-theme-primary">
 					<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
 						<path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
 					</svg>
